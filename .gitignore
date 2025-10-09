@@ -216,3 +216,5 @@ vite.config.ts.timestamp*
 # macOS metadata
 .DS_Store
 ._*
+data/chronicle.db
+backup-10092025-full.tar.gz
