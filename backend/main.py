@@ -2,11 +2,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
 
-from db import engine
-from events import router as events_router
+# Import all models to ensure they are registered with SQLModel
+from backend.models import Event, Participant, Attachment, EventParticipantLink
+from backend.db.base import engine
+from backend.routes.events import router as events_router
+from backend.routes.transcribe import router as transcribe_router
+from backend.routes.analyze import router as analyze_router
 
 app = FastAPI()
 app.include_router(events_router)
+app.include_router(transcribe_router)
+app.include_router(analyze_router)
 
 app.add_middleware(
     CORSMiddleware,

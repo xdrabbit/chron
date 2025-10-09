@@ -4,9 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
-from db import get_session
-from models import Event
-from pdf_utils import build_timeline_pdf
+from backend.db.base import get_session
+from backend.models import Event
+from backend.services.pdf_utils import build_timeline_pdf
 
 router = APIRouter()
 
