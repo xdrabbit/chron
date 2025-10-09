@@ -40,3 +40,10 @@ export const deleteEvent = async (id) => {
   const { data } = await client.delete(`/events/${id}`);
   return data;
 };
+
+export const exportTimelinePdf = async () => {
+  const response = await client.get("/events/export/pdf", {
+    responseType: "blob",
+  });
+  return response.data;
+};

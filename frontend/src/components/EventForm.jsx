@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const initialState = {
   title: "",
@@ -20,6 +20,7 @@ const formatDateInput = (value) => {
 export default function EventForm({ initialData, onSubmit, onCancel }) {
   const [form, setForm] = useState(initialState);
   const [error, setError] = useState(null);
+  const dateInputRef = useRef(null);
 
   useEffect(() => {
     if (initialData) {
@@ -36,6 +37,14 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((previous) => ({ ...previous, [name]: value }));
+  };
+
+  const openDatePicker = () => {
+    if (dateInputRef.current?.showPicker) {
+      dateInputRef.current.showPicker();
+      return;
+    }
+    dateInputRef.current?.focus();
   };
 
   const handleSubmit = async (event) => {
@@ -102,13 +111,24 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
         <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
           Date
         </label>
-        <input
-          type="date"
-          name="date"
-          value={form.date}
-          onChange={handleChange}
-          className="rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
-        />
+        <div className="flex gap-2">
+          <input
+            ref={dateInputRef}
+            type="date"
+            name="date"
+            value={form.date}
+            onChange={handleChange}
+            className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={openDatePicker}
+            className="rounded border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            aria-label="Open calendar picker"
+          >
+            Pick
+          </button>
+        </div>
       </div>
 
       {error && (

@@ -5,6 +5,7 @@ import Timeline from "./components/Timeline.jsx";
 import {
   createEvent,
   deleteEvent,
+  exportTimelinePdf,
   getEvents,
   updateEvent,
 } from "./services/api.js";
@@ -14,6 +15,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
 
   const loadEvents = async () => {
     setLoading(true);
@@ -47,6 +50,28 @@ export default function App() {
     await loadEvents();
   };
 
+  const handleExport = async () => {
+    setExportError(null);
+    setExporting(true);
+    try {
+      const blob = await exportTimelinePdf();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "chronicle-timeline.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(
+        "Unable to export timeline. Ensure the backend is running and try again.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100">
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
@@ -73,6 +98,9 @@ export default function App() {
             error={error}
             onEdit={setEditing}
             onDelete={handleDelete}
+            onExport={handleExport}
+            exporting={exporting}
+            exportError={exportError}
           />
         </section>
       </main>

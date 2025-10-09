@@ -1,10 +1,12 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
 from db import get_session
 from models import Event
+from pdf_utils import build_timeline_pdf
 
 router = APIRouter()
 
@@ -35,6 +37,25 @@ def get_events(session: Session = Depends(get_session)):
     statement = select(Event).order_by(Event.date)
     events = session.exec(statement).all()
     return events
+
+
+@router.get("/events/export/pdf")
+def export_events_pdf(session: Session = Depends(get_session)):
+    statement = select(Event).order_by(Event.date)
+    events = session.exec(statement).all()
+    payload = [
+        {
+            "title": event.title,
+            "description": event.description,
+            "date": event.date,
+        }
+        for event in events
+    ]
+    buffer = build_timeline_pdf(payload)
+    headers = {
+        "Content-Disposition": 'attachment; filename="chronicle-timeline.pdf"'
+    }
+    return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
 
 @router.put("/events/{event_id}", response_model=Event)
 def update_event(event_id: int, payload: Event, session: Session = Depends(get_session)):
