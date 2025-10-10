@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import EventForm from '../components/EventForm';
 import Timeline from '../components/Timeline';
-import { getEvents, createEvent, updateEvent, deleteEvent, exportTimelinePdf } from '../services/api';
+import TestingPanel from '../components/TestingPanel';
+import { getEvents, createEvent, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv } from '../services/api';
 
 const Home = () => {
     const [events, setEvents] = useState([]);
@@ -10,6 +11,9 @@ const Home = () => {
     const [editing, setEditing] = useState(null);
     const [exporting, setExporting] = useState(false);
     const [exportError, setExportError] = useState(null);
+    const [importing, setImporting] = useState(false);
+    const [importError, setImportError] = useState(null);
+    const [importResult, setImportResult] = useState(null);
 
     const loadEvents = async () => {
         setLoading(true);
@@ -65,6 +69,45 @@ const Home = () => {
         }
     };
 
+    const handleExportCsv = async () => {
+        setExportError(null);
+        setExporting(true);
+        try {
+            const blob = await exportTimelineCsv();
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = "chronicle-events.csv";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            setExportError(
+                "Unable to export CSV. Ensure the backend is running and try again.",
+            );
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    const handleImportCsv = async (file) => {
+        setImportError(null);
+        setImportResult(null);
+        setImporting(true);
+        try {
+            const result = await importEventsFromCsv(file);
+            setImportResult(result);
+            await loadEvents(); // Reload events to show imported data
+        } catch (err) {
+            setImportError(
+                err.response?.data?.detail || "Unable to import CSV. Check file format and try again.",
+            );
+        } finally {
+            setImporting(false);
+        }
+    };
+
     return (
         <>
             <header className="flex flex-col gap-1">
@@ -83,6 +126,8 @@ const Home = () => {
                 />
             </section>
 
+            <TestingPanel onDatabaseChange={loadEvents} />
+
             <section className="rounded-lg bg-slate-800 p-4 shadow">
                 <Timeline
                     events={events}
@@ -91,8 +136,13 @@ const Home = () => {
                     onEdit={setEditing}
                     onDelete={handleDelete}
                     onExport={handleExport}
+                    onExportCsv={handleExportCsv}
+                    onImportCsv={handleImportCsv}
                     exporting={exporting}
+                    importing={importing}
                     exportError={exportError}
+                    importError={importError}
+                    importResult={importResult}
                 />
             </section>
         </>

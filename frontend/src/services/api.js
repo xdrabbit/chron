@@ -47,3 +47,37 @@ export const exportTimelinePdf = async () => {
   });
   return response.data;
 };
+
+export const exportTimelineCsv = async () => {
+  const response = await client.get("/events/export/csv", {
+    responseType: "blob",
+  });
+  return response.data;
+};
+
+export const importEventsFromCsv = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  
+  const { data } = await client.post("/events/import/csv", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return data;
+};
+
+export const getDatabaseStats = async () => {
+  const { data } = await client.get("/events/stats");
+  return data;
+};
+
+export const clearAllEvents = async () => {
+  const { data } = await client.delete("/events/");
+  return data;
+};
+
+export const seedSampleEvents = async () => {
+  const { data } = await client.post("/events/seed");
+  return data;
+};
