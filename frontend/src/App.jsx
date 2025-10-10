@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Home from './pages/Home';
 import AddEvent from './pages/AddEvent';
+import VoiceTranscription from './pages/VoiceTranscription';
 
 function App() {
     return (
@@ -11,6 +12,7 @@ function App() {
                     <Routes>
                         <Route path="/" element={<Home />} />
                         <Route path="/add" element={<AddEvent />} />
+                        <Route path="/voice" element={<VoiceTranscription />} />
                     </Routes>
                 </main>
             </div>

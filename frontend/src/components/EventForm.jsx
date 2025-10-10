@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { VoiceTranscriber } from "./VoiceTranscriber";
 
 const initialState = {
   title: "",
@@ -80,6 +81,17 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
       ...previous, 
       date: now.toISOString().slice(0, 10),
       time: now.toTimeString().slice(0, 5)
+    }));
+  };
+
+  const handleVoiceTranscription = (transcriptionText) => {
+    // For now, just put the transcription in the description field
+    // Future enhancement: parse for events, dates, times
+    setForm(previous => ({ 
+      ...previous, 
+      description: previous.description ? 
+        `${previous.description}\n\n${transcriptionText}` : 
+        transcriptionText
     }));
   };
 
@@ -248,6 +260,9 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
           Use 24-hour format (e.g., 15:43 for 3:43 PM). Time is optional - defaults to 12:00 if not specified.
         </p>
       </div>
+
+      {/* Voice Transcription Section */}
+      <VoiceTranscriber onTranscription={handleVoiceTranscription} />
 
       {error && (
         <p className="rounded border border-rose-500 bg-rose-500/10 p-2 text-sm text-rose-200">

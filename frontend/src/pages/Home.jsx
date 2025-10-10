@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import EventForm from '../components/EventForm';
 import Timeline from '../components/Timeline';
 import TestingPanel from '../components/TestingPanel';
@@ -129,10 +130,22 @@ const Home = () => {
     return (
         <>
             <header className="flex flex-col gap-1">
-                <h1 className="text-3xl font-bold">Chronicle</h1>
-                <p className="text-sm text-slate-400">
-                    A local-first narrative timeline.
-                </p>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h1 className="text-3xl font-bold">Chronicle</h1>
+                        <p className="text-sm text-slate-400">
+                            A local-first narrative timeline.
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <Link
+                            to="/voice"
+                            className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-md font-medium transition-colors text-sm"
+                        >
+                            🎤 Voice Transcription
+                        </Link>
+                    </div>
+                </div>
             </header>
 
             {/* Timeline Selector */}
