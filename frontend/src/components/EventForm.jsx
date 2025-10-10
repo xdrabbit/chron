@@ -5,6 +5,7 @@ const initialState = {
   description: "",
   date: "",
   time: "",
+  timeline: "Default",
 };
 
 const formatDateInput = (value) => {
@@ -29,7 +30,7 @@ const formatTimeInput = (value) => {
   return parsed.toISOString().slice(11, 16); // HH:mm format
 };
 
-export default function EventForm({ initialData, onSubmit, onCancel }) {
+export default function EventForm({ initialData, onSubmit, onCancel, availableTimelines = [] }) {
   const [form, setForm] = useState(initialState);
   const [error, setError] = useState(null);
   const dateInputRef = useRef(null);
@@ -41,6 +42,7 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
         description: initialData.description ?? "",
         date: formatDateInput(initialData.date),
         time: formatTimeInput(initialData.date),
+        timeline: initialData.timeline ?? "Default",
       });
     } else {
       setForm(initialState);
@@ -85,8 +87,8 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
     event.preventDefault();
     setError(null);
 
-    if (!form.title.trim() || !form.date) {
-      setError("Please provide at least a title and date.");
+    if (!form.title.trim() || !form.date || !form.timeline.trim()) {
+      setError("Please provide at least a title, date, and timeline.");
       return;
     }
 
@@ -103,6 +105,7 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
       const payload = {
         title: form.title.trim(),
         description: form.description.trim(),
+        timeline: form.timeline.trim(),
         date: new Date(dateTimeString).toISOString(),
       };
 
@@ -148,6 +151,38 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
           rows={4}
           className="rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
         />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+          Timeline
+        </label>
+        <div className="flex gap-2">
+          <select
+            name="timeline"
+            value={form.timeline}
+            onChange={handleChange}
+            className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          >
+            <option value="Default">Default</option>
+            {availableTimelines.map((timeline) => (
+              <option key={timeline} value={timeline}>
+                {timeline}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            name="timeline"
+            value={form.timeline}
+            onChange={handleChange}
+            placeholder="Or type new timeline"
+            className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+        <p className="text-xs text-slate-400">
+          Select existing timeline or type a new one (e.g., "Work Projects", "Personal Life").
+        </p>
       </div>
 
       <div className="flex flex-col gap-2">

@@ -1,9 +1,9 @@
 from datetime import datetime
 import csv
 import io
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
@@ -35,9 +35,19 @@ def create_event(event: Event, session: Session = Depends(get_session)):
     session.refresh(event)
     return event
 
+@router.get("/timelines/")
+def get_timelines(session: Session = Depends(get_session)):
+    """Get all unique timeline names"""
+    statement = select(Event.timeline).distinct()
+    timelines = session.exec(statement).all()
+    return sorted(timelines)
+
+
 @router.get("/events/", response_model=list[Event])
-def get_events(session: Session = Depends(get_session)):
+def get_events(timeline: Optional[str] = Query(None), session: Session = Depends(get_session)):
     statement = select(Event).order_by(Event.date)
+    if timeline:
+        statement = statement.where(Event.timeline == timeline)
     events = session.exec(statement).all()
     return events
 
@@ -53,7 +63,7 @@ def export_events_csv(session: Session = Depends(get_session)):
     writer = csv.writer(output)
     
     # Write header
-    writer.writerow(['title', 'description', 'date', 'emotion', 'tags'])
+    writer.writerow(['title', 'description', 'date', 'timeline', 'emotion', 'tags'])
     
     # Write events
     for event in events:
@@ -61,6 +71,7 @@ def export_events_csv(session: Session = Depends(get_session)):
             event.title,
             event.description,
             event.date.strftime('%Y-%m-%d %H:%M:%S'),
+            event.timeline,
             event.emotion or '',
             event.tags or ''
         ])
@@ -108,6 +119,9 @@ def update_event(event_id: str, payload: Event, session: Session = Depends(get_s
     event.title = payload.title
     event.description = payload.description
     event.date = payload.date
+    event.timeline = payload.timeline or "Default"
+    event.emotion = payload.emotion
+    event.tags = payload.tags
 
     session.add(event)
     session.commit()
@@ -118,8 +132,9 @@ def update_event(event_id: str, payload: Event, session: Session = Depends(get_s
 async def import_events_csv(file: UploadFile = File(...), session: Session = Depends(get_session)):
     """
     Import events from CSV file.
-    Expected CSV format: title,description,date
+    Expected CSV format: title,description,date,timeline,emotion,tags
     Date format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS
+    Timeline is optional, defaults to "Default"
     """
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="File must be a CSV")
@@ -163,6 +178,7 @@ async def import_events_csv(file: UploadFile = File(...), session: Session = Dep
                     title=row['title'].strip(),
                     description=row['description'].strip(),
                     date=event_date,
+                    timeline=row.get('timeline', '').strip() or "Default",
                     emotion=row.get('emotion', '').strip() or None,
                     tags=row.get('tags', '').strip() or None
                 )
@@ -233,6 +249,7 @@ def seed_sample_events(session: Session = Depends(get_session)):
                 "title": "Project Started",
                 "description": "Beginning of the Chronicle project development",
                 "date": datetime(2025, 1, 15, 9, 0, 0),
+                "timeline": "Work Projects",
                 "emotion": "excited",
                 "tags": "development,milestone"
             },
@@ -240,6 +257,7 @@ def seed_sample_events(session: Session = Depends(get_session)):
                 "title": "First Release",
                 "description": "Released the initial version with basic timeline functionality",
                 "date": datetime(2025, 3, 20, 14, 30, 0),
+                "timeline": "Work Projects",
                 "emotion": "accomplished",
                 "tags": "release,milestone"
             },
@@ -247,13 +265,23 @@ def seed_sample_events(session: Session = Depends(get_session)):
                 "title": "User Feedback",
                 "description": "Received valuable feedback from early users",
                 "date": datetime(2025, 4, 5, 11, 15, 0),
+                "timeline": "Work Projects",
                 "emotion": "thoughtful",
                 "tags": "feedback,improvement"
+            },
+            {
+                "title": "Morning Workout",
+                "description": "Started a new fitness routine",
+                "date": datetime(2025, 10, 1, 7, 0, 0),
+                "timeline": "Personal Life",
+                "emotion": "energetic",
+                "tags": "health,fitness"
             },
             {
                 "title": "CSV Feature Added",
                 "description": "Implemented CSV import and export functionality",
                 "date": datetime(2025, 10, 10, 16, 45, 0),
+                "timeline": "Work Projects",
                 "emotion": "satisfied",
                 "tags": "feature,enhancement"
             },
@@ -261,8 +289,17 @@ def seed_sample_events(session: Session = Depends(get_session)):
                 "title": "Testing Panel Created",
                 "description": "Added a testing panel with database management tools",
                 "date": datetime(2025, 10, 10, 18, 0, 0),
+                "timeline": "Work Projects",
                 "emotion": "productive",
                 "tags": "testing,development,tools"
+            },
+            {
+                "title": "Client Issue Reported",
+                "description": "Client texted about urgent production system issue",
+                "date": datetime(2025, 10, 10, 8, 45, 0),
+                "timeline": "Client Communications",
+                "emotion": "concerned",
+                "tags": "urgent,client,support"
             }
         ]
         

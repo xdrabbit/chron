@@ -21,8 +21,14 @@ const client = axios.create({
   },
 });
 
-export const getEvents = async () => {
-  const { data } = await client.get("/events/");
+export const getEvents = async (timeline = null) => {
+  const params = timeline ? { timeline } : {};
+  const { data } = await client.get("/events/", { params });
+  return data;
+};
+
+export const getTimelines = async () => {
+  const { data } = await client.get("/timelines/");
   return data;
 };
 

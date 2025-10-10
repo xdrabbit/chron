@@ -12,6 +12,7 @@ class Event(SQLModel, table=True):
     title: str
     description: str
     date: datetime
+    timeline: str = Field(default="Default")
     emotion: Optional[str] = None
     tags: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

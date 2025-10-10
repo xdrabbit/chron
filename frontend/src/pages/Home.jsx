@@ -2,10 +2,12 @@ import React, { useEffect, useState } from 'react';
 import EventForm from '../components/EventForm';
 import Timeline from '../components/Timeline';
 import TestingPanel from '../components/TestingPanel';
-import { getEvents, createEvent, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv } from '../services/api';
+import { getEvents, createEvent, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv, getTimelines } from '../services/api';
 
 const Home = () => {
     const [events, setEvents] = useState([]);
+    const [timelines, setTimelines] = useState(["Default"]);
+    const [currentTimeline, setCurrentTimeline] = useState("Default");
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [editing, setEditing] = useState(null);
@@ -19,7 +21,7 @@ const Home = () => {
         setLoading(true);
         setError(null);
         try {
-            const data = await getEvents();
+            const data = await getEvents(currentTimeline === "All" ? null : currentTimeline);
             setEvents(data);
         } catch (err) {
             setError("Unable to fetch events. Check that the backend is running.");
@@ -28,8 +30,22 @@ const Home = () => {
         }
     };
 
+    const loadTimelines = async () => {
+        try {
+            const data = await getTimelines();
+            setTimelines(["All", "Default", ...data.filter(t => t !== "Default")]);
+        } catch (err) {
+            console.error("Failed to load timelines:", err);
+        }
+    };
+
     useEffect(() => {
+        loadTimelines();
         loadEvents();
+    }, [currentTimeline]);
+
+    useEffect(() => {
+        loadTimelines();
     }, []);
 
     const handleSubmit = async (formData) => {
@@ -40,6 +56,7 @@ const Home = () => {
             await createEvent(formData);
         }
         await loadEvents();
+        await loadTimelines();
     };
 
     const handleDelete = async (eventId) => {
@@ -98,6 +115,7 @@ const Home = () => {
         try {
             const result = await importEventsFromCsv(file);
             setImportResult(result);
+            await loadTimelines(); // Reload timelines as new ones might be imported
             await loadEvents(); // Reload events to show imported data
         } catch (err) {
             setImportError(
@@ -117,16 +135,43 @@ const Home = () => {
                 </p>
             </header>
 
+            {/* Timeline Selector */}
+            <section className="rounded-lg bg-slate-800 p-4 shadow">
+                <div className="flex items-center gap-4">
+                    <label className="text-sm font-semibold text-slate-300">
+                        Timeline:
+                    </label>
+                    <select
+                        value={currentTimeline}
+                        onChange={(e) => setCurrentTimeline(e.target.value)}
+                        className="rounded border border-slate-600 bg-slate-900 px-3 py-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+                    >
+                        {timelines.map((timeline) => (
+                            <option key={timeline} value={timeline}>
+                                {timeline}
+                            </option>
+                        ))}
+                    </select>
+                    <span className="text-xs text-slate-400">
+                        {currentTimeline === "All" 
+                            ? `Showing all events from ${timelines.length - 1} timeline(s)`
+                            : `Viewing: ${currentTimeline}`
+                        }
+                    </span>
+                </div>
+            </section>
+
             <section className="rounded-lg bg-slate-800 p-4 shadow">
                 <EventForm
                     key={editing ? editing.id : "new"}
                     initialData={editing}
                     onSubmit={handleSubmit}
                     onCancel={() => setEditing(null)}
+                    availableTimelines={timelines.filter(t => t !== "All")}
                 />
             </section>
 
-            <TestingPanel onDatabaseChange={loadEvents} />
+            <TestingPanel onDatabaseChange={() => { loadEvents(); loadTimelines(); }} />
 
             <section className="rounded-lg bg-slate-800 p-4 shadow">
                 <Timeline
