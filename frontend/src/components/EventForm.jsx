@@ -35,6 +35,7 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
   const [form, setForm] = useState(initialState);
   const [error, setError] = useState(null);
   const [showVoiceTranscription, setShowVoiceTranscription] = useState(false);
+  const [transcriptionData, setTranscriptionData] = useState(null); // Store audio file and metadata
   const dateInputRef = useRef(null);
 
   useEffect(() => {
@@ -85,14 +86,16 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
     }));
   };
 
-  const handleVoiceTranscription = (transcriptionText) => {
-    // For now, just put the transcription in the description field
-    // Future enhancement: parse for events, dates, times
+  const handleVoiceTranscription = (data) => {
+    // Store the full transcription data including audio file and word timestamps
+    setTranscriptionData(data);
+    
+    // Put the transcription text in the description field
     setForm(previous => ({ 
       ...previous, 
       description: previous.description ? 
-        `${previous.description}\n\n${transcriptionText}` : 
-        transcriptionText
+        `${previous.description}\n\n${data.transcription}` : 
+        data.transcription
     }));
   };
 
@@ -122,8 +125,22 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
         date: new Date(dateTimeString).toISOString(),
       };
 
-      await onSubmit(payload);
+      // If we have transcription data with audio, use the with-audio endpoint
+      if (transcriptionData && transcriptionData.audioFile) {
+        const formData = new FormData();
+        formData.append('audio_file', transcriptionData.audioFile, 'audio.mp3');
+        formData.append('title', payload.title);
+        formData.append('description', payload.description);
+        formData.append('timeline', payload.timeline);
+        formData.append('date', payload.date);
+        
+        await onSubmit(formData, true); // Pass flag indicating it's formData with audio
+      } else {
+        await onSubmit(payload);
+      }
+      
       setForm(initialState);
+      setTranscriptionData(null);
     } catch (err) {
       setError("Unable to save event. Try again.");
     }

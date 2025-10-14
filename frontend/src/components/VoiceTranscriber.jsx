@@ -113,7 +113,14 @@ export function VoiceTranscriber({ onTranscription }) {
             if (data.transcription) {
                 setTranscription(data.transcription);
                 if (onTranscription) {
-                    onTranscription(data.transcription);
+                    // Pass back transcription, audio file, and word timestamps
+                    onTranscription({
+                        transcription: data.transcription,
+                        audioFile: audioFile,
+                        words: data.words || [],
+                        language: data.language,
+                        duration: data.duration
+                    });
                 }
             } else {
                 setError('No transcription text received');

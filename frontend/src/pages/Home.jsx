@@ -5,7 +5,7 @@ import Timeline from '../components/Timeline';
 import VisualTimeline from '../components/VisualTimeline';
 import TestingPanel from '../components/TestingPanel';
 import SearchPanel from '../components/SearchPanel';
-import { getEvents, createEvent, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv, getTimelines } from '../services/api';
+import { getEvents, createEvent, createEventWithAudio, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv, getTimelines } from '../services/api';
 
 const Home = () => {
     const [events, setEvents] = useState([]);
@@ -55,12 +55,17 @@ const Home = () => {
         loadTimelines();
     }, []);
 
-    const handleSubmit = async (formData) => {
+    const handleSubmit = async (formData, isAudio = false) => {
         if (editing) {
             await updateEvent(editing.id, formData);
             setEditing(null);
         } else {
-            await createEvent(formData);
+            // Use appropriate API based on whether we have audio
+            if (isAudio) {
+                await createEventWithAudio(formData);
+            } else {
+                await createEvent(formData);
+            }
         }
         await loadEvents();
         await loadTimelines();
