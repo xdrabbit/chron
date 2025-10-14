@@ -34,6 +34,7 @@ const formatTimeInput = (value) => {
 export default function EventForm({ initialData, onSubmit, onCancel, availableTimelines = [] }) {
   const [form, setForm] = useState(initialState);
   const [error, setError] = useState(null);
+  const [showVoiceTranscription, setShowVoiceTranscription] = useState(false);
   const dateInputRef = useRef(null);
 
   useEffect(() => {
@@ -261,8 +262,29 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
         </p>
       </div>
 
-      {/* Voice Transcription Section */}
-      <VoiceTranscriber onTranscription={handleVoiceTranscription} />
+      {/* Voice Transcription Section - Collapsible */}
+      <div className="border-t border-amber-600/30 pt-4">
+        <button
+          type="button"
+          onClick={() => setShowVoiceTranscription(!showVoiceTranscription)}
+          className="w-full flex items-center justify-between p-3 bg-slate-900/50 hover:bg-slate-900 rounded-lg transition-colors border border-slate-700"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-purple-400">🎤</span>
+            <span className="text-sm font-semibold text-slate-200">Voice Transcription</span>
+            <span className="text-xs text-slate-400">(Optional)</span>
+          </div>
+          <span className="text-slate-400 text-lg">
+            {showVoiceTranscription ? '−' : '+'}
+          </span>
+        </button>
+        
+        {showVoiceTranscription && (
+          <div className="mt-3">
+            <VoiceTranscriber onTranscription={handleVoiceTranscription} />
+          </div>
+        )}
+      </div>
 
       {error && (
         <p className="rounded border border-rose-500 bg-rose-500/10 p-2 text-sm text-rose-200">

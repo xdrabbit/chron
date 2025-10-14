@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import EventForm from '../components/EventForm';
 import Timeline from '../components/Timeline';
+import VisualTimeline from '../components/VisualTimeline';
 import TestingPanel from '../components/TestingPanel';
 import { getEvents, createEvent, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv, getTimelines } from '../services/api';
 
@@ -17,6 +18,9 @@ const Home = () => {
     const [importing, setImporting] = useState(false);
     const [importError, setImportError] = useState(null);
     const [importResult, setImportResult] = useState(null);
+    const eventListRef = useRef(null);
+    const visualTimelineRef = useRef(null);
+    const [showTestingPanel, setShowTestingPanel] = useState(false);
 
     const loadEvents = async () => {
         setLoading(true);
@@ -63,6 +67,26 @@ const Home = () => {
     const handleDelete = async (eventId) => {
         await deleteEvent(eventId);
         await loadEvents();
+    };
+
+    const handleTimelineEventClick = (event) => {
+        // Scroll to the event in the list
+        const eventElement = document.getElementById(`event-${event.id}`);
+        if (eventElement) {
+            eventElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Briefly highlight the event
+            eventElement.classList.add('ring-2', 'ring-green-500');
+            setTimeout(() => {
+                eventElement.classList.remove('ring-2', 'ring-green-500');
+            }, 2000);
+        }
+    };
+
+    const handleEventCardClick = (event) => {
+        // Focus the visual timeline on this event
+        if (visualTimelineRef.current) {
+            visualTimelineRef.current.focusOnEvent(event.id);
+        }
     };
 
     const handleExport = async () => {
@@ -174,18 +198,19 @@ const Home = () => {
                 </div>
             </section>
 
-            <section className="rounded-lg bg-slate-800 p-4 shadow">
-                <EventForm
-                    key={editing ? editing.id : "new"}
-                    initialData={editing}
-                    onSubmit={handleSubmit}
-                    onCancel={() => setEditing(null)}
-                    availableTimelines={timelines.filter(t => t !== "All")}
-                />
-            </section>
+            {/* Visual Timeline Viewer */}
+            {events.length > 0 && (
+                <section>
+                    <VisualTimeline
+                        ref={visualTimelineRef}
+                        events={events}
+                        onEventClick={handleTimelineEventClick}
+                        currentTimeline={currentTimeline}
+                    />
+                </section>
+            )}
 
-            <TestingPanel onDatabaseChange={() => { loadEvents(); loadTimelines(); }} />
-
+            {/* Event List */}
             <section className="rounded-lg bg-slate-800 p-4 shadow">
                 <Timeline
                     events={events}
@@ -193,6 +218,7 @@ const Home = () => {
                     error={error}
                     onEdit={setEditing}
                     onDelete={handleDelete}
+                    onEventClick={handleEventCardClick}
                     onExport={handleExport}
                     onExportCsv={handleExportCsv}
                     onImportCsv={handleImportCsv}
@@ -202,6 +228,45 @@ const Home = () => {
                     importError={importError}
                     importResult={importResult}
                 />
+            </section>
+
+            {/* Event Form - Highlighted for data entry */}
+            <section className="rounded-lg bg-gradient-to-br from-amber-900/30 to-slate-800 border-2 border-amber-600/50 p-4 shadow-lg">
+                <div className="flex items-center gap-2 mb-4">
+                    <span className="text-amber-400 text-xl">✏️</span>
+                    <h3 className="text-lg font-semibold text-amber-200">
+                        {editing ? 'Edit Event' : 'Add New Event'}
+                    </h3>
+                </div>
+                <EventForm
+                    key={editing ? editing.id : "new"}
+                    initialData={editing}
+                    onSubmit={handleSubmit}
+                    onCancel={() => setEditing(null)}
+                    availableTimelines={timelines.filter(t => t !== "All")}
+                />
+            </section>
+
+            {/* Testing Panel - Collapsible */}
+            <section className="rounded-lg bg-slate-800 border border-slate-700 shadow">
+                <button
+                    onClick={() => setShowTestingPanel(!showTestingPanel)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-slate-700 transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <span className="text-yellow-400 text-xl">🧪</span>
+                        <h3 className="text-lg font-semibold text-slate-200">Testing Panel</h3>
+                        <span className="text-xs bg-yellow-600 text-yellow-100 px-2 py-0.5 rounded">DEV</span>
+                    </div>
+                    <span className="text-slate-400 text-xl">
+                        {showTestingPanel ? '−' : '+'}
+                    </span>
+                </button>
+                {showTestingPanel && (
+                    <div className="p-4 border-t border-slate-700">
+                        <TestingPanel onDatabaseChange={() => { loadEvents(); loadTimelines(); }} />
+                    </div>
+                )}
             </section>
         </>
     );

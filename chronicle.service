@@ -1,0 +1,42 @@
+# SystemD Service Configuration for Chronicle Backend
+# Save this as: /etc/systemd/system/chronicle.service
+# Then run:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable chronicle
+#   sudo systemctl start chronicle
+#   sudo systemctl status chronicle
+
+[Unit]
+Description=Chronicle Timeline Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=xdrabbit_ritualstack
+Group=www-data
+WorkingDirectory=/var/www/chronicle/backend
+
+# Set PATH to include virtual environment
+Environment="PATH=/var/www/chronicle/backend/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/var/www/chronicle/backend"
+
+# Start command
+ExecStart=/var/www/chronicle/backend/.venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8001
+
+# Restart settings
+Restart=always
+RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=chronicle
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

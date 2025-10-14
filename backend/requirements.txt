@@ -4,3 +4,4 @@ sqlmodel
 pydantic
 reportlab
 python-multipart
+openai-whisper

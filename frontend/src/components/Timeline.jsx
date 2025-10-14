@@ -28,6 +28,7 @@ export default function Timeline({
   onExport,
   onExportCsv,
   onImportCsv,
+  onEventClick,
   exporting = false,
   importing = false,
   exportError = null,
@@ -133,7 +134,9 @@ export default function Timeline({
           {events.map((event) => (
             <li
               key={event.id}
-              className="rounded border border-slate-700 bg-slate-900 p-4 shadow-sm"
+              id={`event-${event.id}`}
+              onClick={() => onEventClick?.(event)}
+              className="rounded border border-slate-700 bg-slate-900 p-4 shadow-sm transition-all cursor-pointer hover:border-slate-600 hover:bg-slate-800"
             >
               <div className="flex items-start justify-between gap-4">
                 <div>

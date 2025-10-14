@@ -92,7 +92,9 @@ export function VoiceTranscriber({ onTranscription }) {
 
             console.log('Sending audio for transcription...', audioFile.size, 'bytes');
 
-            const response = await fetch('http://192.168.0.15:8000/transcribe/', {
+            // Use environment variable for API URL
+            const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+            const response = await fetch(`${apiUrl}/transcribe/`, {
                 method: 'POST',
                 body: formData,
             });
