@@ -87,3 +87,31 @@ export const seedSampleEvents = async () => {
   const { data } = await client.post("/events/seed");
   return data;
 };
+
+// Search API
+export const searchEvents = async (query) => {
+  const { data } = await client.get("/search", {
+    params: { q: query }
+  });
+  return data;
+};
+
+export const rebuildSearchIndex = async () => {
+  const { data } = await client.post("/search/rebuild-index");
+  return data;
+};
+
+// Audio API
+export const getEventAudio = (eventId) => {
+  const baseUrl = resolveBaseUrl();
+  return `${baseUrl}/events/${eventId}/audio`;
+};
+
+export const createEventWithAudio = async (formData) => {
+  const { data } = await client.post("/events/with-audio", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return data;
+};

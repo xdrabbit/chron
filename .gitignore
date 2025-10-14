@@ -216,3 +216,11 @@ vite.config.ts.timestamp*
 # macOS metadata
 .DS_Store
 ._*
+
+# Uploaded audio files - too large for git
+backend/uploads/
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.webm

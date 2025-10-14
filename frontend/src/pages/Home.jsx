@@ -4,6 +4,7 @@ import EventForm from '../components/EventForm';
 import Timeline from '../components/Timeline';
 import VisualTimeline from '../components/VisualTimeline';
 import TestingPanel from '../components/TestingPanel';
+import SearchPanel from '../components/SearchPanel';
 import { getEvents, createEvent, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv, getTimelines } from '../services/api';
 
 const Home = () => {
@@ -21,6 +22,7 @@ const Home = () => {
     const eventListRef = useRef(null);
     const visualTimelineRef = useRef(null);
     const [showTestingPanel, setShowTestingPanel] = useState(false);
+    const [showSearchPanel, setShowSearchPanel] = useState(false);
 
     const loadEvents = async () => {
         setLoading(true);
@@ -151,6 +153,13 @@ const Home = () => {
         }
     };
 
+    const handleSearchResultSelect = (event) => {
+        // Scroll to the event in the timeline
+        handleEventCardClick(event);
+        // Optionally close search panel
+        // setShowSearchPanel(false);
+    };
+
     return (
         <>
             <header className="flex flex-col gap-1">
@@ -209,6 +218,28 @@ const Home = () => {
                     />
                 </section>
             )}
+
+            {/* Search Panel - Collapsible */}
+            <section className="rounded-lg bg-slate-800 border border-slate-700 shadow">
+                <button
+                    onClick={() => setShowSearchPanel(!showSearchPanel)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-slate-700 transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <span className="text-blue-400 text-xl">🔍</span>
+                        <h3 className="text-lg font-semibold text-slate-200">Search Events</h3>
+                        <span className="text-xs bg-blue-600 text-blue-100 px-2 py-0.5 rounded">FTS5</span>
+                    </div>
+                    <span className="text-slate-400 text-xl">
+                        {showSearchPanel ? '−' : '+'}
+                    </span>
+                </button>
+                {showSearchPanel && (
+                    <div className="p-4 border-t border-slate-700">
+                        <SearchPanel onEventSelect={handleSearchResultSelect} />
+                    </div>
+                )}
+            </section>
 
             {/* Event List */}
             <section className="rounded-lg bg-slate-800 p-4 shadow">

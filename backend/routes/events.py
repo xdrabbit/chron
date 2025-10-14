@@ -1,17 +1,26 @@
 from datetime import datetime
 import csv
 import io
+import os
+import json
+import uuid
 from typing import List, Optional
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Form
+from fastapi.responses import StreamingResponse, FileResponse
 from sqlmodel import Session, select
 
 from backend.db.base import get_session
 from backend.models import Event
 from backend.services.pdf_utils import build_timeline_pdf
+from backend.services.whisper_service import whisper_service
 
 router = APIRouter()
+
+# Audio upload directory
+UPLOAD_DIR = Path(__file__).parent.parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 # Base path handled directly in routes for clarity
 
@@ -358,3 +367,78 @@ def delete_event(event_id: str, session: Session = Depends(get_session)):
     session.delete(event)
     session.commit()
     return {"deleted": event_id}
+
+
+@router.post("/events/with-audio")
+async def create_event_with_audio(
+    title: str = Form(...),
+    description: str = Form(""),
+    date: str = Form(...),
+    timeline: str = Form("Default"),
+    emotion: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),
+    audio_file: UploadFile = File(...),
+    transcribe: bool = Form(True),
+    session: Session = Depends(get_session)
+):
+    """
+    Create an event with an attached audio file and optional transcription.
+    """
+    try:
+        # Save audio file
+        file_ext = os.path.splitext(audio_file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_ext}"
+        file_path = UPLOAD_DIR / unique_filename
+        
+        with open(file_path, "wb") as f:
+            content = await audio_file.read()
+            f.write(content)
+        
+        # Transcribe if requested
+        transcription_text = description
+        word_timestamps = None
+        
+        if transcribe:
+            result = whisper_service.transcribe_audio(str(file_path))
+            transcription_text = result["text"]
+            word_timestamps = json.dumps(result.get("words", []))
+        
+        # Create event
+        event = Event(
+            title=title,
+            description=transcription_text or description,
+            date=_normalize_date(date),
+            timeline=timeline,
+            emotion=emotion,
+            tags=tags,
+            audio_file=str(file_path.relative_to(Path(__file__).parent.parent)),
+            transcription_words=word_timestamps
+        )
+        
+        session.add(event)
+        session.commit()
+        session.refresh(event)
+        
+        return event
+        
+    except Exception as e:
+        # Clean up file if event creation fails
+        if file_path.exists():
+            os.unlink(file_path)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/events/{event_id}/audio")
+def get_event_audio(event_id: str, session: Session = Depends(get_session)):
+    """
+    Serve the audio file for an event.
+    """
+    event = session.get(Event, event_id)
+    if not event or not event.audio_file:
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    
+    audio_path = Path(__file__).parent.parent / event.audio_file
+    if not audio_path.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found on disk")
+    
+    return FileResponse(audio_path)

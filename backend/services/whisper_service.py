@@ -1,11 +1,15 @@
 import whisper
 import os
 import tempfile
+import requests
 from typing import Optional
 import logging
 from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
+
+# Check for GPU service URL
+GPU_SERVICE_URL = os.getenv("WHISPER_GPU_URL")  # e.g., https://oasis-wsl2.tail42ac25.ts.net
 
 class WhisperService:
     def __init__(self, model_name: str = "base"):
@@ -24,16 +28,17 @@ class WhisperService:
             self.model = whisper.load_model(self.model_name)
             logger.info("Whisper model loaded successfully")
     
-    def transcribe_audio(self, audio_file_path: str, language: Optional[str] = None) -> dict:
+    def transcribe_audio(self, audio_file_path: str, language: Optional[str] = None, word_timestamps: bool = True) -> dict:
         """
-        Transcribe audio file to text.
+        Transcribe audio file to text with optional word-level timestamps.
         
         Args:
             audio_file_path: Path to the audio file
             language: Optional language code (e.g., 'en', 'es', 'fr')
+            word_timestamps: If True, include word-level timestamps for sync
         
         Returns:
-            dict with transcription results
+            dict with transcription results including word timestamps
         """
         try:
             self.load_model()
@@ -44,16 +49,30 @@ class WhisperService:
             result = self.model.transcribe(
                 audio_file_path,
                 language=language,
-                verbose=False
+                verbose=False,
+                word_timestamps=word_timestamps  # Enable word-level timestamps
             )
             
             logger.info("Transcription completed successfully")
+            
+            # Extract word-level timestamps if available
+            words = []
+            if word_timestamps and "segments" in result:
+                for segment in result["segments"]:
+                    if "words" in segment:
+                        for word_info in segment["words"]:
+                            words.append({
+                                "word": word_info.get("word", "").strip(),
+                                "start": word_info.get("start", 0),
+                                "end": word_info.get("end", 0)
+                            })
             
             return {
                 "text": result["text"].strip(),
                 "language": result.get("language", "unknown"),
                 "segments": result.get("segments", []),
-                "duration": result.get("duration", 0)
+                "duration": result.get("duration", 0),
+                "words": words  # Word-level timestamps for audio sync
             }
             
         except Exception as e:
@@ -63,6 +82,7 @@ class WhisperService:
     def transcribe_audio_bytes(self, audio_bytes: bytes, filename: str = "audio.wav", language: Optional[str] = None) -> dict:
         """
         Transcribe audio from bytes data.
+        Will use GPU service if WHISPER_GPU_URL is set, otherwise falls back to local CPU.
         
         Args:
             audio_bytes: Audio file as bytes
@@ -72,6 +92,41 @@ class WhisperService:
         Returns:
             dict with transcription results
         """
+        # Try GPU service first if available
+        if GPU_SERVICE_URL:
+            try:
+                logger.info(f"Using GPU service at {GPU_SERVICE_URL}")
+                
+                files = {'audio_file': (filename, audio_bytes, 'audio/mpeg')}
+                data = {'word_timestamps': 'true'}
+                if language:
+                    data['language'] = language
+                
+                response = requests.post(
+                    f"{GPU_SERVICE_URL}/transcribe/",
+                    files=files,
+                    data=data,
+                    timeout=300  # 5 minute timeout for large files
+                )
+                
+                if response.status_code == 200:
+                    gpu_result = response.json()
+                    logger.info(f"GPU transcription successful (device: {gpu_result.get('device', 'unknown')})")
+                    # Normalize GPU service response to match local format
+                    return {
+                        "text": gpu_result.get("transcription", ""),
+                        "language": gpu_result.get("language", "unknown"),
+                        "segments": gpu_result.get("segments", []),
+                        "duration": gpu_result.get("duration", 0),
+                        "words": gpu_result.get("words", [])
+                    }
+                else:
+                    logger.warning(f"GPU service returned {response.status_code}, falling back to CPU")
+            except Exception as e:
+                logger.warning(f"GPU service failed: {e}, falling back to CPU")
+        
+        # Fall back to local CPU transcription
+        logger.info("Using local CPU transcription")
         try:
             # Create temporary file
             with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1]) as temp_file:

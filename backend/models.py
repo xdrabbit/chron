@@ -16,6 +16,9 @@ class Event(SQLModel, table=True):
     emotion: Optional[str] = None
     tags: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    # Audio and transcription fields
+    audio_file: Optional[str] = None  # Path to audio file
+    transcription_words: Optional[str] = None  # JSON string of word-level timestamps
     attachments: List["Attachment"] = Relationship(back_populates="event")
     participants: List["Participant"] = Relationship(back_populates="events", link_model=EventParticipantLink)
 

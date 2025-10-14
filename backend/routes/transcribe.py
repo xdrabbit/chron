@@ -54,7 +54,8 @@ async def transcribe_audio(
             "language": result["language"],
             "duration": result["duration"],
             "filename": audio_file.filename,
-            "segments": result.get("segments", [])
+            "segments": result.get("segments", []),
+            "words": result.get("words", [])  # Include word-level timestamps for sync
         }
         
     except HTTPException:
