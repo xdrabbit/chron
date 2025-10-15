@@ -12,9 +12,11 @@ from fastapi.responses import StreamingResponse, FileResponse
 from sqlmodel import Session, select
 
 from backend.db.base import get_session
+from backend.db.fts import index_event, remove_from_index
 from backend.models import Event
 from backend.services.pdf_utils import build_timeline_pdf
 from backend.services.whisper_service import whisper_service
+from backend.services.summary_service import get_summary_service
 
 router = APIRouter()
 
@@ -42,6 +44,16 @@ def create_event(event: Event, session: Session = Depends(get_session)):
     session.add(event)
     session.commit()
     session.refresh(event)
+    
+    # Index event in FTS5 for search
+    index_event(
+        event_id=event.id,
+        title=event.title,
+        description=event.description,
+        tags=event.tags,
+        timeline=event.timeline
+    )
+    
     return event
 
 @router.get("/timelines/")
@@ -135,6 +147,16 @@ def update_event(event_id: str, payload: Event, session: Session = Depends(get_s
     session.add(event)
     session.commit()
     session.refresh(event)
+    
+    # Update FTS5 index
+    index_event(
+        event_id=event.id,
+        title=event.title,
+        description=event.description,
+        tags=event.tags,
+        timeline=event.timeline
+    )
+    
     return event
 
 @router.post("/events/import/csv")
@@ -364,6 +386,9 @@ def delete_event(event_id: str, session: Session = Depends(get_session)):
     if event is None:
         raise HTTPException(status_code=404, detail="Event not found")
 
+    # Remove from FTS5 index
+    remove_from_index(event_id)
+    
     session.delete(event)
     session.commit()
     return {"deleted": event_id}
@@ -397,11 +422,17 @@ async def create_event_with_audio(
         # Transcribe if requested
         transcription_text = description
         word_timestamps = None
+        summary_text = None
         
         if transcribe:
             result = whisper_service.transcribe_audio(str(file_path))
             transcription_text = result["text"]
             word_timestamps = json.dumps(result.get("words", []))
+            
+            # Generate smart summary
+            summary_service = get_summary_service()
+            summary_data = summary_service.generate_summary(transcription_text)
+            summary_text = json.dumps(summary_data)  # Store as JSON
         
         # Create event
         event = Event(
@@ -412,12 +443,22 @@ async def create_event_with_audio(
             emotion=emotion,
             tags=tags,
             audio_file=str(file_path.relative_to(Path(__file__).parent.parent)),
-            transcription_words=word_timestamps
+            transcription_words=word_timestamps,
+            summary=summary_text
         )
         
         session.add(event)
         session.commit()
         session.refresh(event)
+        
+        # Index event in FTS5 for search
+        index_event(
+            event_id=event.id,
+            title=event.title,
+            description=event.description,
+            tags=event.tags,
+            timeline=event.timeline
+        )
         
         return event
         

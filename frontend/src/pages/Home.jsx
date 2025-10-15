@@ -5,6 +5,7 @@ import Timeline from '../components/Timeline';
 import VisualTimeline from '../components/VisualTimeline';
 import TestingPanel from '../components/TestingPanel';
 import SearchPanel from '../components/SearchPanel';
+import AskPanel from '../components/AskPanel';
 import { getEvents, createEvent, createEventWithAudio, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv, getTimelines } from '../services/api';
 
 const Home = () => {
@@ -23,6 +24,8 @@ const Home = () => {
     const visualTimelineRef = useRef(null);
     const [showTestingPanel, setShowTestingPanel] = useState(false);
     const [showSearchPanel, setShowSearchPanel] = useState(false);
+    const [showAskPanel, setShowAskPanel] = useState(false);
+    const [successMessage, setSuccessMessage] = useState(null);
 
     const loadEvents = async () => {
         setLoading(true);
@@ -59,16 +62,24 @@ const Home = () => {
         if (editing) {
             await updateEvent(editing.id, formData);
             setEditing(null);
+            showSuccessToast('Event updated successfully!');
         } else {
             // Use appropriate API based on whether we have audio
             if (isAudio) {
                 await createEventWithAudio(formData);
+                showSuccessToast('Event created with audio transcription!');
             } else {
                 await createEvent(formData);
+                showSuccessToast('Event created successfully!');
             }
         }
         await loadEvents();
         await loadTimelines();
+    };
+
+    const showSuccessToast = (message) => {
+        setSuccessMessage(message);
+        setTimeout(() => setSuccessMessage(null), 3000); // Hide after 3 seconds
     };
 
     const handleDelete = async (eventId) => {
@@ -224,6 +235,28 @@ const Home = () => {
                 </section>
             )}
 
+            {/* Ask Your Timeline - AI Conversational Interface */}
+            <section className="rounded-lg bg-gradient-to-br from-purple-900/30 to-slate-800 border-2 border-purple-600/50 shadow-lg">
+                <button
+                    onClick={() => setShowAskPanel(!showAskPanel)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-purple-900/20 transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <span className="text-purple-400 text-xl">💬</span>
+                        <h3 className="text-lg font-semibold text-purple-200">Ask Your Timeline</h3>
+                        <span className="text-xs bg-purple-600 text-purple-100 px-2 py-0.5 rounded">AI</span>
+                    </div>
+                    <span className="text-slate-400 text-xl">
+                        {showAskPanel ? '−' : '+'}
+                    </span>
+                </button>
+                {showAskPanel && (
+                    <div className="p-4 border-t border-purple-700/50">
+                        <AskPanel currentTimeline={currentTimeline} />
+                    </div>
+                )}
+            </section>
+
             {/* Search Panel - Collapsible */}
             <section className="rounded-lg bg-slate-800 border border-slate-700 shadow">
                 <button
@@ -304,6 +337,14 @@ const Home = () => {
                     </div>
                 )}
             </section>
+
+            {/* Success Toast Notification */}
+            {successMessage && (
+                <div className="fixed bottom-8 right-8 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-slide-up z-50">
+                    <span className="text-xl">✓</span>
+                    <span className="font-medium">{successMessage}</span>
+                </div>
+            )}
         </>
     );
 };

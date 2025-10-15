@@ -19,6 +19,7 @@ class Event(SQLModel, table=True):
     # Audio and transcription fields
     audio_file: Optional[str] = None  # Path to audio file
     transcription_words: Optional[str] = None  # JSON string of word-level timestamps
+    summary: Optional[str] = None  # Smart summary (snippet + key topics)
     attachments: List["Attachment"] = Relationship(back_populates="event")
     participants: List["Participant"] = Relationship(back_populates="events", link_model=EventParticipantLink)
 

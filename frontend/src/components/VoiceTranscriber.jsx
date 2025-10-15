@@ -198,8 +198,9 @@ export function VoiceTranscriber({ onTranscription }) {
                 )}
 
                 {isProcessing && (
-                    <div className="bg-yellow-50 border border-yellow-200 p-3 rounded">
-                        <p className="text-yellow-700 text-sm">⏳ Processing audio with Whisper...</p>
+                    <div className="bg-yellow-50 border border-yellow-200 p-3 rounded flex items-center gap-3">
+                        <span className="text-2xl animate-spin-slow">⏳</span>
+                        <p className="text-yellow-700 text-sm">Processing audio with Whisper...</p>
                     </div>
                 )}
 

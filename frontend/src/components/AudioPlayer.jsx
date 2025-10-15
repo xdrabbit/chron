@@ -41,13 +41,23 @@ export default function AudioPlayer({ audioUrl, transcription, words = [] }) {
     useEffect(() => {
         if (!words || words.length === 0) return;
 
+        // Find the word that contains the current time
         const activeIndex = words.findIndex((word, idx) => {
-            const nextWord = words[idx + 1];
-            return currentTime >= word.start && (!nextWord || currentTime < nextWord.start);
+            // Word is active if currentTime is between its start and end
+            return currentTime >= word.start && currentTime <= word.end;
         });
 
         setActiveWordIndex(activeIndex);
     }, [currentTime, words]);
+
+    // Debug: Log words on mount
+    useEffect(() => {
+        console.log('AudioPlayer received words:', words?.length || 0, 'words');
+        if (words && words.length > 0) {
+            console.log('First word:', words[0]);
+            console.log('Last word:', words[words.length - 1]);
+        }
+    }, [words]);
 
     const togglePlay = () => {
         const audio = audioRef.current;

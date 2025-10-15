@@ -34,6 +34,7 @@ const formatTimeInput = (value) => {
 export default function EventForm({ initialData, onSubmit, onCancel, availableTimelines = [] }) {
   const [form, setForm] = useState(initialState);
   const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showVoiceTranscription, setShowVoiceTranscription] = useState(false);
   const [transcriptionData, setTranscriptionData] = useState(null); // Store audio file and metadata
   const dateInputRef = useRef(null);
@@ -102,9 +103,11 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError(null);
+    setIsSubmitting(true);
 
     if (!form.title.trim() || !form.date || !form.timeline.trim()) {
       setError("Please provide at least a title, date, and timeline.");
+      setIsSubmitting(false);
       return;
     }
 
@@ -143,6 +146,8 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
       setTranscriptionData(null);
     } catch (err) {
       setError("Unable to save event. Try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -312,15 +317,28 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          disabled={isSubmitting}
+          className={`rounded px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all flex items-center gap-2 ${
+            isSubmitting 
+              ? 'bg-blue-700 animate-pulse cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-500'
+          }`}
         >
-          {isEditing ? "Update Event" : "Add Event"}
+          {isSubmitting ? (
+            <>
+              <span className="animate-spin-slow">⏳</span>
+              <span>{transcriptionData ? 'Transcribing & Saving...' : 'Saving...'}</span>
+            </>
+          ) : (
+            <span>{isEditing ? "Update Event" : "Add Event"}</span>
+          )}
         </button>
         {isEditing && (
           <button
             type="button"
             onClick={handleCancel}
-            className="rounded border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
+            disabled={isSubmitting}
+            className="rounded border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>

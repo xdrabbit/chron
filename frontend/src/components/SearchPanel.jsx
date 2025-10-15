@@ -71,7 +71,7 @@ export default function SearchPanel({ onEventSelect }) {
         const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         // Remove the 'backend/' prefix if present
         const cleanPath = audioFile.replace(/^backend\//, '');
-        return `${baseUrl}/events/${cleanPath}`;
+        return `${baseUrl}/${cleanPath}`;
     };
 
     return (
@@ -185,11 +185,29 @@ export default function SearchPanel({ onEventSelect }) {
                                         )}
                                     </div>
 
-                                    {/* Description snippet with highlights */}
-                                    <div 
-                                        className="text-sm text-slate-300 line-clamp-2"
-                                        dangerouslySetInnerHTML={{ __html: result.description_snippet || result.event.description }}
-                                    />
+                                    {/* Smart Summary or Description snippet */}
+                                    {result.event.summary ? (
+                                        <div className="text-sm space-y-2">
+                                            <p className="text-slate-300">
+                                                {JSON.parse(result.event.summary).snippet}
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {JSON.parse(result.event.summary).topics.map((topic, idx) => (
+                                                    <span 
+                                                        key={idx}
+                                                        className="px-2 py-0.5 bg-blue-600/20 text-blue-300 rounded text-xs border border-blue-600/30"
+                                                    >
+                                                        {topic}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div 
+                                            className="text-sm text-slate-300 line-clamp-2"
+                                            dangerouslySetInnerHTML={{ __html: result.description_snippet || result.event.description }}
+                                        />
+                                    )}
                                 </div>
 
                                 {/* Expand indicator */}
@@ -209,10 +227,19 @@ export default function SearchPanel({ onEventSelect }) {
                         {/* Expanded Content */}
                         {expandedResult === result.event.id && (
                             <div className="border-t border-slate-700 p-4 space-y-4">
-                                {/* Full Description */}
-                                <div className="text-sm text-slate-300 whitespace-pre-wrap">
-                                    {result.event.description}
-                                </div>
+                                {/* Audio Player (replaces description for audio events) */}
+                                {result.has_audio && result.event.audio_file ? (
+                                    <AudioPlayer
+                                        audioUrl={getAudioUrl(result.event.audio_file)}
+                                        transcription={result.event.description}
+                                        words={result.word_timestamps || []}
+                                    />
+                                ) : (
+                                    /* Full Description (only for non-audio events) */
+                                    <div className="text-sm text-slate-300 whitespace-pre-wrap">
+                                        {result.event.description}
+                                    </div>
+                                )}
 
                                 {/* Tags */}
                                 {result.event.tags && (
@@ -225,17 +252,6 @@ export default function SearchPanel({ onEventSelect }) {
                                                 {tag.trim()}
                                             </span>
                                         ))}
-                                    </div>
-                                )}
-
-                                {/* Audio Player */}
-                                {result.has_audio && result.event.audio_file && (
-                                    <div className="mt-4">
-                                        <AudioPlayer
-                                            audioUrl={getAudioUrl(result.event.audio_file)}
-                                            transcription={result.event.description}
-                                            words={result.word_timestamps || []}
-                                        />
                                     </div>
                                 )}
 
