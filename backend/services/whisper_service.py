@@ -5,7 +5,10 @@ import json
 import requests
 from typing import Optional
 import logging
+import time
 from fastapi import HTTPException
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,36 @@ class WhisperService:
         'base' is a good balance of speed and accuracy for most use cases.
         """
         self.model_name = model_name
+        
+        # Create persistent session for GPU service calls
+        self.session = self._create_session()
+    
+    def _create_session(self) -> requests.Session:
+        """Create HTTP session with connection pooling for GPU service."""
+        session = requests.Session()
+        
+        retry_strategy = Retry(
+            total=2,
+            status_forcelist=[429, 500, 502, 503, 504],
+            backoff_factor=0.3
+        )
+        
+        adapter = HTTPAdapter(
+            pool_connections=5,
+            pool_maxsize=10,
+            max_retries=retry_strategy,
+            pool_block=False
+        )
+        
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        
+        session.headers.update({
+            'Connection': 'keep-alive',
+            'Keep-Alive': 'timeout=60, max=50'
+        })
+        
+        return session
         
     def _call_whisper_cpp(self, audio_file_path: str, language: Optional[str] = None) -> dict:
         """
@@ -126,12 +159,15 @@ class WhisperService:
             dict with transcription results including word timestamps
         """
         try:
+            start_time = time.time()
             logger.info(f"Transcribing audio file with whisper.cpp: {audio_file_path}")
             
             # Use whisper.cpp for transcription
             result = self._call_whisper_cpp(audio_file_path, language)
             
-            logger.info("Transcription completed successfully with whisper.cpp")
+            total_time = time.time() - start_time
+            logger.info(f"Transcription completed successfully with whisper.cpp in {total_time:.3f}s")
+            result['timing'] = {'total': round(total_time, 3)}
             return result
             
         except Exception as e:
@@ -154,6 +190,7 @@ class WhisperService:
         # Try GPU service first if available
         if GPU_SERVICE_URL:
             try:
+                start_time = time.time()
                 logger.info(f"Using GPU service at {GPU_SERVICE_URL}")
                 
                 files = {'audio_file': (filename, audio_bytes, 'audio/mpeg')}
@@ -161,26 +198,30 @@ class WhisperService:
                 if language:
                     data['language'] = language
                 
-                response = requests.post(
+                # Use persistent session for connection reuse
+                response = self.session.post(
                     f"{GPU_SERVICE_URL}/transcribe/",
                     files=files,
                     data=data,
-                    timeout=300  # 5 minute timeout for large files
+                    timeout=120  # Reduced from 300s - GPU should be fast
                 )
+                
+                gpu_time = time.time() - start_time
                 
                 if response.status_code == 200:
                     gpu_result = response.json()
-                    logger.info(f"GPU transcription successful (device: {gpu_result.get('device', 'unknown')})")
+                    logger.info(f"GPU transcription successful in {gpu_time:.3f}s (device: {gpu_result.get('device', 'unknown')})")
                     # Normalize GPU service response to match local format
                     return {
                         "text": gpu_result.get("transcription", ""),
                         "language": gpu_result.get("language", "unknown"),
                         "segments": gpu_result.get("segments", []),
                         "duration": gpu_result.get("duration", 0),
-                        "words": gpu_result.get("words", [])
+                        "words": gpu_result.get("words", []),
+                        "timing": {"gpu_call": round(gpu_time, 3)}
                     }
                 else:
-                    logger.warning(f"GPU service returned {response.status_code}, falling back to CPU")
+                    logger.warning(f"GPU service returned {response.status_code} in {gpu_time:.3f}s, falling back to CPU")
             except Exception as e:
                 logger.warning(f"GPU service failed: {e}, falling back to CPU")
         

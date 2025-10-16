@@ -3,18 +3,25 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import Home from './pages/Home';
 import AddEvent from './pages/AddEvent';
 import VoiceTranscription from './pages/VoiceTranscription';
+import ProfessionalDashboard from './pages/ProfessionalDashboard';
 
 function App() {
     return (
         <Router>
             <div className="min-h-screen bg-slate-900 text-slate-100">
-                <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
-                    <Routes>
-                        <Route path="/" element={<Home />} />
-                        <Route path="/add" element={<AddEvent />} />
-                        <Route path="/voice" element={<VoiceTranscription />} />
-                    </Routes>
-                </main>
+                {/* Professional Dashboard Route - Full Screen */}
+                <Routes>
+                    <Route path="/pro" element={<ProfessionalDashboard />} />
+                    <Route path="/*" element={
+                        <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-6">
+                            <Routes>
+                                <Route path="/" element={<Home />} />
+                                <Route path="/add" element={<AddEvent />} />
+                                <Route path="/voice" element={<VoiceTranscription />} />
+                            </Routes>
+                        </main>
+                    } />
+                </Routes>
             </div>
         </Router>
     );

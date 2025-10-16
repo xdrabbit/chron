@@ -5,7 +5,12 @@ import Timeline from '../components/Timeline';
 import VisualTimeline from '../components/VisualTimeline';
 import TestingPanel from '../components/TestingPanel';
 import SearchPanel from '../components/SearchPanel';
-import AskPanel from '../components/AskPanel';
+// AI components disabled - FTS5 search is sufficient
+// import AskPanel from '../components/AskPanel';
+// import FloatingAskPanel from '../components/FloatingAskPanel';
+import FloatingTimelineViz from '../components/FloatingTimelineViz';
+import FloatingSearchPanel from '../components/FloatingSearchPanel';
+import FloatingEventForm from '../components/FloatingEventForm';
 import { getEvents, createEvent, createEventWithAudio, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv, getTimelines } from '../services/api';
 
 const Home = () => {
@@ -24,7 +29,11 @@ const Home = () => {
     const visualTimelineRef = useRef(null);
     const [showTestingPanel, setShowTestingPanel] = useState(false);
     const [showSearchPanel, setShowSearchPanel] = useState(false);
-    const [showAskPanel, setShowAskPanel] = useState(false);
+    // const [showAskPanel, setShowAskPanel] = useState(false);
+    // const [showFloatingAI, setShowFloatingAI] = useState(false);
+    const [showFloatingTimeline, setShowFloatingTimeline] = useState(false);
+    const [showFloatingSearch, setShowFloatingSearch] = useState(false);
+    const [showFloatingForm, setShowFloatingForm] = useState(false);
     const [successMessage, setSuccessMessage] = useState(null);
 
     const loadEvents = async () => {
@@ -193,6 +202,55 @@ const Home = () => {
                         >
                             🎤 Voice Transcription
                         </Link>
+                        
+                        {/* Floating Panel Controls */}
+                        <div className="flex gap-1 bg-slate-700 rounded-md p-1">
+                            <button
+                                onClick={() => setShowFloatingTimeline(!showFloatingTimeline)}
+                                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                                    showFloatingTimeline 
+                                        ? 'bg-blue-600 text-white' 
+                                        : 'text-slate-300 hover:bg-slate-600'
+                                }`}
+                                title="Float Timeline Viz"
+                            >
+                                📅 Timeline
+                            </button>
+                            <button
+                                onClick={() => setShowFloatingSearch(!showFloatingSearch)}
+                                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                                    showFloatingSearch 
+                                        ? 'bg-green-600 text-white' 
+                                        : 'text-slate-300 hover:bg-slate-600'
+                                }`}
+                                title="Float Search Panel"
+                            >
+                                🔍 Search
+                            </button>
+                            <button
+                                onClick={() => setShowFloatingForm(!showFloatingForm)}
+                                className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                                    showFloatingForm 
+                                        ? 'bg-orange-600 text-white' 
+                                        : 'text-slate-300 hover:bg-slate-600'
+                                }`}
+                                title="Float Event Form"
+                            >
+                                ✏️ Form
+                            </button>
+                        </div>
+                        
+                        <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-1 rounded self-center">
+                            👁️ Draggable Eyelids
+                        </span>
+                        
+                        <Link
+                            to="/pro"
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white px-4 py-2 rounded-md font-medium transition-all duration-200 text-sm shadow-lg"
+                            title="Professional SUNO-inspired Layout"
+                        >
+                            🎵 Pro Dashboard
+                        </Link>
                     </div>
                 </div>
             </header>
@@ -234,28 +292,6 @@ const Home = () => {
                     />
                 </section>
             )}
-
-            {/* Ask Your Timeline - AI Conversational Interface */}
-            <section className="rounded-lg bg-gradient-to-br from-purple-900/30 to-slate-800 border-2 border-purple-600/50 shadow-lg">
-                <button
-                    onClick={() => setShowAskPanel(!showAskPanel)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-purple-900/20 transition-colors"
-                >
-                    <div className="flex items-center gap-3">
-                        <span className="text-purple-400 text-xl">💬</span>
-                        <h3 className="text-lg font-semibold text-purple-200">Ask Your Timeline</h3>
-                        <span className="text-xs bg-purple-600 text-purple-100 px-2 py-0.5 rounded">AI</span>
-                    </div>
-                    <span className="text-slate-400 text-xl">
-                        {showAskPanel ? '−' : '+'}
-                    </span>
-                </button>
-                {showAskPanel && (
-                    <div className="p-4 border-t border-purple-700/50">
-                        <AskPanel currentTimeline={currentTimeline} />
-                    </div>
-                )}
-            </section>
 
             {/* Search Panel - Collapsible */}
             <section className="rounded-lg bg-slate-800 border border-slate-700 shadow">
@@ -344,6 +380,45 @@ const Home = () => {
                     <span className="text-xl">✓</span>
                     <span className="font-medium">{successMessage}</span>
                 </div>
+            )}
+
+            {/* Revolutionary Floating Panels */}
+            {showFloatingTimeline && (
+                <FloatingTimelineViz
+                    events={events}
+                    onEventClick={(event) => {
+                        // Scroll to event in main timeline
+                        if (eventListRef.current) {
+                            const element = document.getElementById(`event-${event.id}`);
+                            if (element) {
+                                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }
+                    }}
+                    currentTimeline={currentTimeline}
+                    onClose={() => setShowFloatingTimeline(false)}
+                    isFloating={true}
+                />
+            )}
+            
+            {showFloatingSearch && (
+                <FloatingSearchPanel
+                    onClose={() => setShowFloatingSearch(false)}
+                    isFloating={true}
+                />
+            )}
+            
+            {showFloatingForm && (
+                <FloatingEventForm
+                    onSubmit={async (formData, isAudio) => {
+                        await handleSubmit(formData, isAudio);
+                        setShowFloatingForm(false); // Close after creating
+                    }}
+                    editing={editing}
+                    timelines={timelines}
+                    onClose={() => setShowFloatingForm(false)}
+                    isFloating={true}
+                />
             )}
         </>
     );

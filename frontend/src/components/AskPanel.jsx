@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { askTimeline, checkAIStatus } from '../services/api';
 
-export default function AskPanel({ currentTimeline }) {
+export default function AskPanel({ currentTimeline, isFloating = false }) {
     const [question, setQuestion] = useState('');
     const [conversation, setConversation] = useState([]);
     const [isAsking, setIsAsking] = useState(false);
@@ -90,33 +90,36 @@ export default function AskPanel({ currentTimeline }) {
     ];
 
     return (
-        <div className="flex flex-col h-full max-h-[600px]">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    <span className="text-2xl">💬</span>
-                    <h3 className="text-lg font-semibold text-slate-100">Ask Your Timeline</h3>
-                </div>
-                <div className="flex items-center gap-3 text-xs">
-                    {aiStatus && (
-                        <>
-                            <span className={`w-2 h-2 rounded-full ${aiStatus.available ? 'bg-green-500' : 'bg-red-500'}`} />
-                            <span className="text-slate-400">
-                                {aiStatus.available ? 'AI Ready' : 'AI Offline'}
+        <div className={`flex flex-col h-full ${isFloating ? 'max-h-none' : 'max-h-[600px]'}`}>
+            {/* Header - EYELID (Frozen) - Only show in embedded mode */}
+            {!isFloating && (
+                <div className="sticky top-0 z-10 bg-slate-900/95 backdrop-blur-sm pb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <span className="text-2xl">💬</span>
+                        <h3 className="text-lg font-semibold text-slate-100">Ask Your Timeline</h3>
+                        <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded">👁️ Eyelid</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                        {aiStatus && (
+                            <>
+                                <span className={`w-2 h-2 rounded-full ${aiStatus.available ? 'bg-green-500' : 'bg-red-500'}`} />
+                                <span className="text-slate-400">
+                                    {aiStatus.available ? 'AI Ready' : 'AI Offline'}
+                                </span>
+                            </>
+                        )}
+                        {currentTimeline && (
+                            <span className="text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded">
+                                📍 {currentTimeline}
                             </span>
-                        </>
-                    )}
-                    {currentTimeline && (
-                        <span className="text-purple-400 bg-purple-900/30 px-2 py-0.5 rounded">
-                            📍 {currentTimeline}
-                        </span>
-                    )}
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* AI Status Warning */}
             {aiStatus && !aiStatus.available && (
-                <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-sm text-amber-200">
+                <div className={`${isFloating ? '' : 'mb-4'} p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-sm text-amber-200`}>
                     <p className="font-semibold mb-1">⚠️ AI Service Not Available</p>
                     <p className="text-xs">{aiStatus.message}</p>
                     <p className="text-xs mt-1">Run: <code className="bg-slate-900 px-1 py-0.5 rounded">ollama serve</code></p>
@@ -124,7 +127,7 @@ export default function AskPanel({ currentTimeline }) {
             )}
 
             {/* Conversation */}
-            <div className="flex-1 overflow-y-auto bg-slate-900 rounded-lg p-4 mb-4 space-y-4">
+            <div className={`flex-1 overflow-y-auto ${isFloating ? 'bg-transparent' : 'bg-slate-900 rounded-lg'} ${isFloating ? 'p-0' : 'p-4 mb-4'} space-y-4`}>
                 {conversation.length === 0 ? (
                     <div className="text-center py-8">
                         <p className="text-slate-400 mb-4">Ask me anything about your timeline!</p>
@@ -208,8 +211,8 @@ export default function AskPanel({ currentTimeline }) {
                 </div>
             )}
 
-            {/* Input */}
-            <form onSubmit={handleAsk} className="flex gap-2">
+            {/* Input - EYELID (Frozen Footer) - Only show footer styling in embedded mode */}
+            <form onSubmit={handleAsk} className={`${isFloating ? 'pt-4' : 'sticky bottom-0 z-10 bg-slate-900/95 backdrop-blur-sm pt-4'} flex gap-2`}>
                 <input
                     type="text"
                     value={question}

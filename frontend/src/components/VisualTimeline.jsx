@@ -167,14 +167,15 @@ const VisualTimeline = forwardRef(({ events, onEventClick, currentTimeline }, re
     };
 
     return (
-        <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden">
-            {/* Timeline Controls */}
-            <div className="bg-slate-700 px-4 py-3 flex items-center justify-between border-b border-slate-600">
+        <div className="bg-slate-800 rounded-lg shadow-lg overflow-hidden flex flex-col max-h-[500px]">
+            {/* Timeline Controls - EYELID (Frozen Header) */}
+            <div className="sticky top-0 z-10 bg-slate-700 px-4 py-3 flex items-center justify-between border-b border-slate-600">
                 <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold text-slate-200">Timeline Visualization</h3>
                     <span className="text-xs text-slate-400">
                         ({events.length} event{events.length !== 1 ? 's' : ''})
                     </span>
+                    <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-0.5 rounded">👁️ Eyelid</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -242,8 +243,8 @@ const VisualTimeline = forwardRef(({ events, onEventClick, currentTimeline }, re
                 </div>
             </div>
 
-            {/* Timeline Container */}
-            <div className="relative">
+            {/* Timeline Container - Scrollable Content */}
+            <div className="flex-1 overflow-y-auto">
                 {events.length === 0 ? (
                     <div className="h-[300px] flex items-center justify-center text-slate-400">
                         <p>No events to display. Add your first event to see the timeline!</p>
@@ -253,8 +254,8 @@ const VisualTimeline = forwardRef(({ events, onEventClick, currentTimeline }, re
                 )}
             </div>
 
-            {/* Timeline Help */}
-            <div className="bg-slate-700 px-4 py-2 text-xs text-slate-400 border-t border-slate-600">
+            {/* Timeline Help - EYELID (Frozen Footer) */}
+            <div className="sticky bottom-0 bg-slate-700 px-4 py-2 text-xs text-slate-400 border-t border-slate-600">
                 💡 <strong>Tip:</strong> Scroll to zoom, drag to pan, click events for details
             </div>
         </div>

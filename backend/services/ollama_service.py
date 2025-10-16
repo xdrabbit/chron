@@ -1,15 +1,25 @@
 """
 Ollama LLM Service for Conversational Timeline Queries
 
-Provides natural language interface to query and understand timeline events.
+SMART AGENT PATTERN:
+1. Extract search keywords from user question (tiny prompt, ~2 seconds)
+2. Use FTS5 to search events (instant, <0.1 seconds)
+3. Generate answer from focused snippets (small prompt, ~3-5 seconds)
+
+Total: 5-8 seconds instead of 60+ seconds!
+
 Uses local Ollama instance for privacy-first AI assistance.
+FTS5 acts as the "memory" - Ollama just connects the dots.
 """
 
 import os
 import requests
 import json
 import logging
-from typing import List, Dict, Optional
+import time
+from typing import List, Dict, Optional, Tuple
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 logger = logging.getLogger(__name__)
 
@@ -31,39 +41,182 @@ class OllamaService:
         self.base_url = base_url or os.getenv("OLLAMA_URL", "http://localhost:11434")
         self.model = os.getenv("OLLAMA_MODEL", model)
         
+        # Create persistent session with connection pooling and keepalive
+        self.session = self._create_session()
+    
+    def _create_session(self) -> requests.Session:
+        """
+        Create HTTP session with connection pooling and keepalive.
+        This significantly reduces latency for remote connections.
+        """
+        session = requests.Session()
+        
+        # Configure retry strategy for transient failures
+        retry_strategy = Retry(
+            total=3,
+            status_forcelist=[429, 500, 502, 503, 504],
+            backoff_factor=0.5
+        )
+        
+        # Mount adapter with connection pooling
+        adapter = HTTPAdapter(
+            pool_connections=10,
+            pool_maxsize=20,
+            max_retries=retry_strategy,
+            pool_block=False
+        )
+        
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+        
+        # Set TCP keepalive in headers
+        session.headers.update({
+            'Connection': 'keep-alive',
+            'Keep-Alive': 'timeout=60, max=100'
+        })
+        
+        return session
+    
     def is_available(self) -> bool:
         """Check if Ollama service is available."""
         try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=2)
+            response = self.session.get(f"{self.base_url}/api/tags", timeout=2)
             return response.status_code == 200
         except:
             return False
     
-    def ask(self, question: str, context_events: List[Dict], conversation_history: List[Dict] = None) -> Dict:
+    def extract_search_keywords(self, question: str) -> str:
         """
-        Ask a natural language question about timeline events.
+        STAGE 1: Extract search keywords from user question.
+        This is a tiny, fast prompt that just identifies what to search for.
         
         Args:
             question: User's natural language question
-            context_events: List of relevant events from FTS5 search
+            
+        Returns:
+            FTS5-compatible search query string
+        """
+        try:
+            start_time = time.time()
+            
+            # Minimal prompt for keyword extraction
+            prompt = f"""Extract search keywords for a timeline database query.
+
+User question: "{question}"
+
+Return ONLY the search keywords (no explanation). Use AND/OR operators if needed.
+Examples:
+- "What did Judge Smith say about rezoning?" → "Judge Smith AND rezoning"
+- "Were there any test transcriptions?" → "test AND transcription"
+- "Show me meetings from last week" → "meeting"
+
+Keywords:"""
+
+            response = self.session.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.3,  # Low temp for focused extraction
+                        "num_ctx": 512,      # Small context
+                        "num_predict": 30,   # Very short response
+                        "num_thread": 8,
+                    }
+                },
+                timeout=120  # First request loads model (60-90s), subsequent are fast
+            )
+            
+            extract_time = time.time() - start_time
+            logger.info(f"Keyword extraction time: {extract_time:.3f}s")
+            
+            if response.status_code == 200:
+                result = response.json()
+                keywords = result.get("response", "").strip()
+                # Clean up the response - remove FTS5-incompatible characters
+                import re
+                keywords = keywords.replace('"', '').replace('\n', ' ')
+                # Remove special chars that break FTS5: ? ! @ # $ % ^ & * ( ) [ ] { } < > / \ | ~ ` ; :
+                keywords = re.sub(r'[?!@#$%^&*()\[\]{}<>/\\|~`;:,.]', ' ', keywords)
+                keywords = keywords.strip()
+                # Replace multiple spaces with single space
+                keywords = re.sub(r'\s+', ' ', keywords)
+                logger.info(f"Extracted and cleaned keywords: '{keywords}'")
+                return keywords
+            else:
+                logger.warning(f"Keyword extraction failed, using original question")
+                # Clean the original question too
+                import re
+                cleaned = re.sub(r'[?!@#$%^&*()\[\]{}<>/\\|~`;:,.]', ' ', question)
+                cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+                return cleaned
+                
+        except Exception as e:
+            logger.error(f"Error extracting keywords: {str(e)}")
+            # Return cleaned version of question as fallback
+            import re
+            cleaned = re.sub(r'[?!@#$%^&*()\[\]{}<>/\\|~`;:,.]', ' ', question)
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+            return cleaned
+
+    def ask(self, question: str, fts_search_func, conversation_history: List[Dict] = None) -> Dict:
+        """
+        SMART AGENT PATTERN: Ask a question about timeline events.
+        
+        Flow:
+        1. Extract search keywords (2-3 seconds)
+        2. Search FTS5 with keywords (instant)
+        3. Generate answer from snippets (3-5 seconds)
+        
+        Args:
+            question: User's natural language question
+            fts_search_func: Function to call FTS5 search (passed from route)
             conversation_history: Previous conversation for context
             
         Returns:
             Dict with answer, sources, and metadata
         """
         try:
-            # Build context from events
-            context = self._build_context(context_events)
+            # Start timing
+            start_time = time.time()
             
-            # Build prompt
-            prompt = self._build_prompt(question, context, conversation_history)
+            # STAGE 1: Extract search keywords
+            logger.info(f"Question: {question}")
+            keywords = self.extract_search_keywords(question)
+            extract_time = time.time() - start_time
             
-            # Debug logging
-            logger.info(f"Prompt length: {len(prompt)} chars, {len(prompt.split())} words")
-            logger.info(f"Context events: {len(context_events)}")
+            # STAGE 2: Search FTS5 (instant)
+            search_start = time.time()
+            search_results = fts_search_func(keywords)
+            search_time = time.time() - search_start
+            logger.info(f"FTS5 search time: {search_time:.3f}s, found {len(search_results)} results")
             
-            # Call Ollama with optimized settings for speed
-            response = requests.post(
+            # STAGE 3: Generate answer from focused snippets
+            answer_start = time.time()
+            
+            if not search_results:
+                return {
+                    "answer": f"I searched for '{keywords}' but didn't find any matching events in your timeline.",
+                    "sources": [],
+                    "keywords_used": keywords,
+                    "timing": {
+                        "total": round(time.time() - start_time, 3),
+                        "keyword_extraction": round(extract_time, 3),
+                        "fts5_search": round(search_time, 3),
+                        "answer_generation": 0
+                    }
+                }
+            
+            # Build minimal context from snippets (NOT full text!)
+            context = self._build_focused_context(search_results[:5])  # Max 5 results
+            
+            # Focused prompt for answer generation
+            prompt = self._build_focused_prompt(question, context, conversation_history)
+            
+            logger.info(f"Focused prompt length: {len(prompt)} chars")
+            
+            response = self.session.post(
                 f"{self.base_url}/api/generate",
                 json={
                     "model": self.model,
@@ -71,26 +224,39 @@ class OllamaService:
                     "stream": False,
                     "options": {
                         "temperature": 0.7,
-                        "top_p": 0.9,
-                        "num_ctx": 2048,  # Smaller context window for speed
-                        "num_predict": 256,  # Limit response length
+                        "num_ctx": 512,      # Small context window
+                        "num_predict": 150,  # Concise answers
+                        "num_thread": 8,
                     }
                 },
-                timeout=60  # Should be much faster now
+                timeout=120  # Model may still be loaded from first stage
             )
+            
+            answer_time = time.time() - answer_start
+            logger.info(f"Answer generation time: {answer_time:.3f}s")
             
             if response.status_code == 200:
                 result = response.json()
                 answer_text = result.get("response", "").strip()
                 
-                # Extract event references from answer
-                referenced_events = self._extract_event_references(answer_text, context_events)
+                # Extract event references
+                referenced_events = self._extract_event_references_from_results(answer_text, search_results)
+                
+                total_time = time.time() - start_time
+                logger.info(f"Total request time: {total_time:.3f}s")
                 
                 return {
                     "answer": answer_text,
                     "sources": referenced_events,
+                    "keywords_used": keywords,
                     "model": self.model,
-                    "context_used": len(context_events)
+                    "context_used": len(search_results),
+                    "timing": {
+                        "total": round(total_time, 3),
+                        "keyword_extraction": round(extract_time, 3),
+                        "fts5_search": round(search_time, 3),
+                        "answer_generation": round(answer_time, 3)
+                    }
                 }
             else:
                 logger.error(f"Ollama API error: {response.status_code}")
@@ -101,97 +267,95 @@ class OllamaService:
                 }
                 
         except Exception as e:
-            logger.error(f"Error calling Ollama: {str(e)}")
+            logger.error(f"Error in smart ask: {str(e)}")
             return {
                 "answer": f"An error occurred: {str(e)}",
                 "sources": [],
                 "error": True
             }
     
-    def _build_context(self, events: List[Dict]) -> str:
+    def _build_focused_context(self, search_results: List[Dict]) -> str:
         """
-        Build context string from events for the LLM.
+        Build MINIMAL context from FTS5 search results.
+        Only uses snippets, not full text!
         
         Args:
-            events: List of event dictionaries
+            search_results: List of FTS5 search results with snippets
             
         Returns:
-            Formatted context string
+            Focused context string (under 500 chars)
         """
-        if not events:
-            return "No relevant events found in the timeline."
+        if not search_results:
+            return "No relevant events found."
         
-        context_parts = ["Relevant events:\n"]
+        context_parts = []
         
-        # Limit to top 5 for speed, with concise formatting
-        for i, event in enumerate(events[:5], 1):
-            event_text = f"{i}. {event.get('title', 'Untitled')} ({event.get('date', 'Unknown')})"
+        for i, result in enumerate(search_results[:5], 1):
+            # Get the event from the result
+            event = result.get('event', {})
             
-            # Add description/transcript - much shorter for speed
-            description = event.get('description', '')
-            if description:
-                # Aggressive truncation for speed
-                if len(description) > 150:
-                    description = description[:150] + "..."
-                event_text += f" - {description}"
+            # Use snippet or truncated description
+            snippet = result.get('description_snippet', '')
+            if not snippet:
+                desc = event.get('description', '')
+                snippet = desc[:80] + "..." if len(desc) > 80 else desc
+            
+            # Format: "1. Title (Date) - snippet"
+            event_text = f"{i}. {event.get('title', 'Untitled')} ({event.get('date', 'Unknown')})"
+            if snippet:
+                # Clean HTML marks from snippet
+                snippet = snippet.replace('<mark>', '').replace('</mark>', '')
+                event_text += f" - {snippet}"
             
             context_parts.append(event_text)
         
         return "\n".join(context_parts)
     
-    def _build_prompt(self, question: str, context: str, history: List[Dict] = None) -> str:
+    def _build_focused_prompt(self, question: str, context: str, history: List[Dict] = None) -> str:
         """
-        Build the prompt for the LLM.
+        Build MINIMAL prompt for focused answer generation.
+        Much shorter than old version = faster inference!
         
         Args:
             question: User's question
-            context: Event context
-            history: Conversation history
+            context: Focused context from snippets
+            history: Conversation history (optional)
             
         Returns:
-            Complete prompt string
+            Focused prompt string (~400 chars)
         """
-        system_prompt = """You help users query their Chronicle timeline events. 
-
-CRITICAL RULES:
-- ONLY use information from the events provided below
-- NEVER make up or invent event names, dates, or details
-- If the events don't contain the answer, say "I don't see any events about that in this timeline"
-- Always cite the actual event title when referencing information
-- Be concise and factual"""
-
-        prompt_parts = [system_prompt, "\n\n"]
+        # Minimal system instruction
+        system = "Answer based ONLY on these timeline events. Be concise. Cite event titles."
         
-        # Add conversation history if present
-        if history:
-            prompt_parts.append("Previous conversation:\n")
-            for turn in history[-3:]:  # Last 3 turns for context
-                prompt_parts.append(f"User: {turn.get('question', '')}\n")
-                prompt_parts.append(f"Assistant: {turn.get('answer', '')}\n")
-            prompt_parts.append("\n")
+        prompt_parts = [system, "\n\n"]
         
-        # Add current context and question
-        prompt_parts.append("EVENTS IN THIS TIMELINE:\n")
+        # Add conversation history (only last 2 turns to stay minimal)
+        if history and len(history) > 0:
+            last_turn = history[-1]
+            prompt_parts.append(f"Previous: Q: {last_turn.get('question', '')} A: {last_turn.get('answer', '')[:100]}\n\n")
+        
+        # Add context and question
+        prompt_parts.append("Events:\n")
         prompt_parts.append(context)
-        prompt_parts.append(f"\n\nUser's question: {question}")
-        prompt_parts.append("\n\nAnswer (only use information from the events above):")
+        prompt_parts.append(f"\n\nQ: {question}\nA:")
         
         return "".join(prompt_parts)
     
-    def _extract_event_references(self, answer: str, events: List[Dict]) -> List[Dict]:
+    def _extract_event_references_from_results(self, answer: str, search_results: List[Dict]) -> List[Dict]:
         """
         Extract which events were referenced in the answer.
         
         Args:
             answer: The generated answer text
-            events: Available events
+            search_results: FTS5 search results
             
         Returns:
             List of event dicts that were referenced
         """
         referenced = []
         
-        for event in events:
+        for result in search_results:
+            event = result.get('event', {})
             title = event.get('title', '').lower()
             # Simple matching - check if event title appears in answer
             if title and title in answer.lower():

@@ -117,6 +117,18 @@ def search_events(query: str, limit: int = 50) -> List[Dict[str, Any]]:
     cursor = conn.cursor()
     
     try:
+        # Sanitize FTS5 query - only add OR operators if none exist
+        # Check for uppercase operators to distinguish from regular words
+        has_operators = any(op in query for op in [' AND ', ' OR ', ' NOT '])
+        
+        if query and not has_operators:
+            # No operators found - convert to OR search
+            # This prevents FTS5 from treating words as column names
+            words = query.split()
+            if len(words) > 1:
+                query = ' OR '.join(words)
+                logger.debug(f"Converted query to OR search: {query}")
+        
         # FTS5 query with snippet highlighting
         cursor.execute("""
             SELECT 

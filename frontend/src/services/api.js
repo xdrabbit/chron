@@ -118,9 +118,9 @@ export const createEventWithAudio = async (formData) => {
 
 // AI Ask API
 export const askTimeline = async (payload) => {
-  // Longer timeout for AI requests (first model load can be slow)
+  // First request loads model (60-90s), subsequent requests are fast (5-10s)
   const { data } = await client.post("/ask", payload, {
-    timeout: 150000  // 150 seconds = 2.5 minutes
+    timeout: 150000  // 150 seconds (2.5 min) for first request model loading
   });
   return data;
 };

@@ -12,7 +12,8 @@ from backend.routes.events import router as events_router
 from backend.routes.transcribe import router as transcribe_router
 from backend.routes.analyze import router as analyze_router
 from backend.routes.search import router as search_router
-from backend.routes.ask import router as ask_router
+# AI features disabled - FTS5 search is instant and sufficient for timeline queries
+# from backend.routes.ask import router as ask_router
 
 app = FastAPI()
 
@@ -24,7 +25,7 @@ app.include_router(events_router)
 app.include_router(transcribe_router)
 app.include_router(analyze_router)
 app.include_router(search_router)
-app.include_router(ask_router)
+# app.include_router(ask_router)  # Disabled - use FTS5 search instead
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,3 +39,7 @@ def on_startup():
     SQLModel.metadata.create_all(engine)
     # Create FTS5 table for full-text search
     create_fts_table()
+    
+    # Note: Auto-warmup disabled - use FTS5 search or manually warmup with:
+    # curl -X POST http://localhost:8000/ask/warmup
+    # Or just wait ~90s on first AI request
