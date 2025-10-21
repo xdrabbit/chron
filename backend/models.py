@@ -20,6 +20,10 @@ class Event(SQLModel, table=True):
     audio_file: Optional[str] = None  # Path to audio file
     transcription_words: Optional[str] = None  # JSON string of word-level timestamps
     summary: Optional[str] = None  # Smart summary (snippet + key topics)
+    # Legal workflow fields
+    actor: Optional[str] = None  # Who was responsible: Tom, Lisa, Realtor, Court, etc.
+    evidence_links: Optional[str] = None  # URLs or file paths to supporting evidence
+    privileged_notes: Optional[str] = None  # Attorney work product - NOT exported to PDF
     attachments: List["Attachment"] = Relationship(back_populates="event")
     participants: List["Participant"] = Relationship(back_populates="events", link_model=EventParticipantLink)
 

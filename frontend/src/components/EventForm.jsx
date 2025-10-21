@@ -7,6 +7,10 @@ const initialState = {
   date: "",
   time: "",
   timeline: "Default",
+  actor: "",
+  emotion: "",
+  tags: "",
+  evidence_links: "",
 };
 
 const formatDateInput = (value) => {
@@ -47,6 +51,10 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
         date: formatDateInput(initialData.date),
         time: formatTimeInput(initialData.date),
         timeline: initialData.timeline ?? "Default",
+        actor: initialData.actor ?? "",
+        emotion: initialData.emotion ?? "",
+        tags: initialData.tags ?? "",
+        evidence_links: initialData.evidence_links ?? "",
       });
     } else {
       setForm(initialState);
@@ -126,6 +134,10 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
         description: form.description.trim(),
         timeline: form.timeline.trim(),
         date: new Date(dateTimeString).toISOString(),
+        actor: form.actor.trim() || null,
+        emotion: form.emotion.trim() || null,
+        tags: form.tags.trim() || null,
+        evidence_links: form.evidence_links.trim() || null,
       };
 
       // If we have transcription data with audio, use the with-audio endpoint
@@ -136,6 +148,10 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
         formData.append('description', payload.description);
         formData.append('timeline', payload.timeline);
         formData.append('date', payload.date);
+        if (payload.actor) formData.append('actor', payload.actor);
+        if (payload.emotion) formData.append('emotion', payload.emotion);
+        if (payload.tags) formData.append('tags', payload.tags);
+        if (payload.evidence_links) formData.append('evidence_links', payload.evidence_links);
         
         await onSubmit(formData, true); // Pass flag indicating it's formData with audio
       } else {
@@ -222,6 +238,40 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
 
       <div className="flex flex-col gap-2">
         <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+          Actor <span className="text-slate-500">(Optional)</span>
+        </label>
+        <div className="flex gap-2">
+          <select
+            name="actor"
+            value={form.actor}
+            onChange={handleChange}
+            className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          >
+            <option value="">Select actor...</option>
+            <option value="Tom">Tom</option>
+            <option value="Lisa">Lisa</option>
+            <option value="Realtor">Realtor</option>
+            <option value="Court">Court</option>
+            <option value="Bank">Bank</option>
+            <option value="Attorney">Attorney</option>
+            <option value="Other">Other</option>
+          </select>
+          <input
+            type="text"
+            name="actor"
+            value={form.actor}
+            onChange={handleChange}
+            placeholder="Or type custom actor"
+            className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+        <p className="text-xs text-slate-400">
+          Who was responsible for this event? Helps with filtering and legal organization.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
           Date & Time
         </label>
         <div className="flex gap-2">
@@ -282,6 +332,60 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
         <p className="text-xs text-slate-400">
           Use 24-hour format (e.g., 15:43 for 3:43 PM). Time is optional - defaults to 12:00 if not specified.
         </p>
+      </div>
+
+      {/* Additional Legal Workflow Fields */}
+      <div className="flex flex-col gap-4">
+        {/* Emotion Field */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+            Emotion <span className="text-slate-500">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            name="emotion"
+            value={form.emotion}
+            onChange={handleChange}
+            placeholder="e.g., frustrated, hopeful, concerned, relieved"
+            className="rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+
+        {/* Tags Field */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+            Tags <span className="text-slate-500">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            name="tags"
+            value={form.tags}
+            onChange={handleChange}
+            placeholder="e.g., urgent, legal, communication, property"
+            className="rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+          <p className="text-xs text-slate-400">
+            Comma-separated keywords for easier searching and organization.
+          </p>
+        </div>
+
+        {/* Evidence Links Field */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+            Evidence Links <span className="text-slate-500">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            name="evidence_links"
+            value={form.evidence_links}
+            onChange={handleChange}
+            placeholder="e.g., photos/walkthrough.pdf, docs/contract.pdf, https://example.com/doc"
+            className="rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+          <p className="text-xs text-slate-400">
+            File paths or URLs to supporting documents, photos, or evidence.
+          </p>
+        </div>
       </div>
 
       {/* Voice Transcription Section - Collapsible */}

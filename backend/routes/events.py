@@ -74,17 +74,20 @@ def get_events(timeline: Optional[str] = Query(None), session: Session = Depends
 
 
 @router.get("/events/export/csv")
-def export_events_csv(session: Session = Depends(get_session)):
-    """Export all events to CSV format"""
-    statement = select(Event).order_by(Event.date)
+def export_events_csv(timeline: str = None, session: Session = Depends(get_session)):
+    """Export events to CSV format, optionally filtered by timeline"""
+    statement = select(Event)
+    if timeline and timeline != "All":
+        statement = statement.where(Event.timeline == timeline)
+    statement = statement.order_by(Event.date)
     events = session.exec(statement).all()
     
     # Create CSV content
     output = io.StringIO()
     writer = csv.writer(output)
     
-    # Write header
-    writer.writerow(['title', 'description', 'date', 'timeline', 'emotion', 'tags'])
+    # Write header with new legal workflow fields
+    writer.writerow(['title', 'description', 'date', 'timeline', 'actor', 'emotion', 'tags', 'evidence_links'])
     
     # Write events
     for event in events:
@@ -93,16 +96,23 @@ def export_events_csv(session: Session = Depends(get_session)):
             event.description,
             event.date.strftime('%Y-%m-%d %H:%M:%S'),
             event.timeline,
+            event.actor or '',
             event.emotion or '',
-            event.tags or ''
+            event.tags or '',
+            event.evidence_links or ''
         ])
     
-    # Create response
+    # Create response with timestamped filename
     csv_content = output.getvalue()
     output.close()
     
+    # Generate timestamped filename for snapshot versioning
+    timestamp = datetime.now().strftime('%Y-%m-%d')
+    timeline_suffix = f"_{timeline}" if timeline and timeline != "All" else ""
+    filename = f"chronicle{timeline_suffix}_{timestamp}.csv"
+    
     headers = {
-        "Content-Disposition": 'attachment; filename="chronicle-events.csv"'
+        "Content-Disposition": f'attachment; filename="{filename}"'
     }
     
     return StreamingResponse(
@@ -113,20 +123,35 @@ def export_events_csv(session: Session = Depends(get_session)):
 
 
 @router.get("/events/export/pdf")
-def export_events_pdf(session: Session = Depends(get_session)):
-    statement = select(Event).order_by(Event.date)
+def export_events_pdf(timeline: str = None, session: Session = Depends(get_session)):
+    statement = select(Event)
+    if timeline and timeline != "All":
+        statement = statement.where(Event.timeline == timeline)
+    statement = statement.order_by(Event.date)
     events = session.exec(statement).all()
     payload = [
         {
             "title": event.title,
             "description": event.description,
             "date": event.date,
+            "timeline": event.timeline,
+            "actor": event.actor,
+            "emotion": event.emotion,
+            "tags": event.tags,
+            "evidence_links": event.evidence_links,
+            # NOTE: privileged_notes intentionally excluded from PDF export
         }
         for event in events
     ]
     buffer = build_timeline_pdf(payload)
+    
+    # Generate timestamped filename for snapshot versioning
+    timestamp = datetime.now().strftime('%Y-%m-%d')
+    timeline_suffix = f"_{timeline}" if timeline and timeline != "All" else ""
+    filename = f"chronicle{timeline_suffix}_{timestamp}.pdf"
+    
     headers = {
-        "Content-Disposition": 'attachment; filename="chronicle-timeline.pdf"'
+        "Content-Disposition": f'attachment; filename="{filename}"'
     }
     return StreamingResponse(buffer, media_type="application/pdf", headers=headers)
 
@@ -141,8 +166,11 @@ def update_event(event_id: str, payload: Event, session: Session = Depends(get_s
     event.description = payload.description
     event.date = payload.date
     event.timeline = payload.timeline or "Default"
+    event.actor = payload.actor
     event.emotion = payload.emotion
     event.tags = payload.tags
+    event.evidence_links = payload.evidence_links
+    event.privileged_notes = payload.privileged_notes
 
     session.add(event)
     session.commit()
@@ -163,9 +191,23 @@ def update_event(event_id: str, payload: Event, session: Session = Depends(get_s
 async def import_events_csv(file: UploadFile = File(...), session: Session = Depends(get_session)):
     """
     Import events from CSV file.
-    Expected CSV format: title,description,date,timeline,emotion,tags
-    Date format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS
-    Timeline is optional, defaults to "Default"
+    Expected CSV format: title,description,date,timeline,actor,emotion,tags,evidence_links
+    
+    Required fields: title, description, date
+    Optional fields: timeline (defaults to "Default"), actor, emotion, tags, evidence_links
+    
+    Actor examples: Tom, Lisa, Realtor, Court, Bank, etc.
+    Evidence_links: URLs or file paths to supporting documents
+    
+    Excel-friendly date formats supported:
+    - YYYY-MM-DD (recommended)
+    - MM/DD/YYYY (Excel US default)
+    - DD/MM/YYYY (Excel international)
+    - MM-DD-YYYY, DD-MM-YYYY, YYYY/MM/DD
+    - With or without time: HH:MM:SS
+    
+    Handles Excel encoding (UTF-8, UTF-8-BOM, CP1252, UTF-16)
+    Note: privileged_notes field is not imported from CSV for security
     """
     if not file.filename.endswith('.csv'):
         raise HTTPException(status_code=400, detail="File must be a CSV")
@@ -173,10 +215,29 @@ async def import_events_csv(file: UploadFile = File(...), session: Session = Dep
     try:
         # Read the CSV content
         content = await file.read()
-        csv_content = content.decode('utf-8')
         
-        # Parse CSV
-        csv_reader = csv.DictReader(io.StringIO(csv_content))
+        # Handle different encodings that Excel might use
+        try:
+            # Try UTF-8 first (most common)
+            csv_content = content.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                # Try UTF-8 with BOM (Excel often adds this)
+                csv_content = content.decode('utf-8-sig')
+            except UnicodeDecodeError:
+                try:
+                    # Try Windows encoding (Excel default)
+                    csv_content = content.decode('cp1252')
+                except UnicodeDecodeError:
+                    # Try UTF-16 (Excel sometimes uses this)
+                    csv_content = content.decode('utf-16')
+        
+        # Remove BOM if present (Excel compatibility)
+        if csv_content.startswith('\ufeff'):
+            csv_content = csv_content[1:]
+        
+        # Parse CSV with Excel dialect for better compatibility
+        csv_reader = csv.DictReader(io.StringIO(csv_content), dialect=csv.excel)
         imported_events = []
         errors = []
         
@@ -187,31 +248,66 @@ async def import_events_csv(file: UploadFile = File(...), session: Session = Dep
                     errors.append(f"Row {row_num}: Missing required fields (title, description, date)")
                     continue
                 
-                # Parse date - handle various formats
+                # Parse date - handle various formats (Excel-friendly)
                 date_str = row['date'].strip()
-                try:
-                    # Try datetime first (YYYY-MM-DD HH:MM:SS)
-                    if ' ' in date_str:
-                        event_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-                    else:
-                        # Try date only (YYYY-MM-DD) - set time to noon
-                        event_date = datetime.strptime(date_str, '%Y-%m-%d').replace(hour=12)
-                except ValueError:
+                event_date = None
+                
+                # Try multiple date formats (Excel compatibility)
+                date_formats = [
+                    '%Y-%m-%d %H:%M:%S',    # YYYY-MM-DD HH:MM:SS
+                    '%Y-%m-%d',             # YYYY-MM-DD
+                    '%m/%d/%Y',             # MM/DD/YYYY (Excel US format)
+                    '%m/%d/%Y %H:%M:%S',    # MM/DD/YYYY HH:MM:SS
+                    '%d/%m/%Y',             # DD/MM/YYYY (Excel UK format)
+                    '%d/%m/%Y %H:%M:%S',    # DD/MM/YYYY HH:MM:SS
+                    '%m-%d-%Y',             # MM-DD-YYYY
+                    '%d-%m-%Y',             # DD-MM-YYYY
+                    '%Y/%m/%d',             # YYYY/MM/DD
+                    '%Y/%m/%d %H:%M:%S',    # YYYY/MM/DD HH:MM:SS
+                ]
+                
+                for date_format in date_formats:
                     try:
-                        # Try ISO format
-                        event_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                        event_date = datetime.strptime(date_str, date_format)
+                        # If date-only format, set time to noon
+                        if ' ' not in date_format:
+                            event_date = event_date.replace(hour=12)
+                        break
                     except ValueError:
-                        errors.append(f"Row {row_num}: Invalid date format '{date_str}'. Use YYYY-MM-DD or YYYY-MM-DD HH:MM:SS")
                         continue
                 
-                # Create event
+                # If none of the standard formats worked, try ISO format
+                if event_date is None:
+                    try:
+                        event_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                    except ValueError:
+                        errors.append(f"Row {row_num}: Invalid date format '{date_str}'. Supported formats: YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY, MM-DD-YYYY, etc.")
+                        continue
+                
+                # Create event (clean up Excel formatting)
+                def clean_field(field_value):
+                    """Clean up field value from Excel CSV quirks"""
+                    if not field_value:
+                        return ""
+                    # Strip whitespace and remove extra quotes that Excel sometimes adds
+                    cleaned = str(field_value).strip()
+                    # Remove surrounding quotes if they're doubled up
+                    if cleaned.startswith('""') and cleaned.endswith('""'):
+                        cleaned = cleaned[2:-2]
+                    elif cleaned.startswith('"') and cleaned.endswith('"'):
+                        cleaned = cleaned[1:-1]
+                    return cleaned
+                
                 event = Event(
-                    title=row['title'].strip(),
-                    description=row['description'].strip(),
+                    title=clean_field(row['title']),
+                    description=clean_field(row['description']),
                     date=event_date,
-                    timeline=row.get('timeline', '').strip() or "Default",
-                    emotion=row.get('emotion', '').strip() or None,
-                    tags=row.get('tags', '').strip() or None
+                    timeline=clean_field(row.get('timeline')) or "Default",
+                    actor=clean_field(row.get('actor')) or None,
+                    emotion=clean_field(row.get('emotion')) or None,
+                    tags=clean_field(row.get('tags')) or None,
+                    evidence_links=clean_field(row.get('evidence_links')) or None,
+                    # privileged_notes is not imported from CSV for security
                 )
                 
                 session.add(event)
@@ -274,63 +370,110 @@ def get_database_stats(session: Session = Depends(get_session)):
 def seed_sample_events(session: Session = Depends(get_session)):
     """Add sample events for testing purposes"""
     try:
-        # Sample events data
+        # Sample events data with legal workflow fields
         sample_events = [
             {
-                "title": "Project Started",
-                "description": "Beginning of the Chronicle project development",
-                "date": datetime(2025, 1, 15, 9, 0, 0),
-                "timeline": "Work Projects",
+                "title": "Initial Consultation with Lisa",
+                "description": "First meeting to discuss property purchase and legal requirements",
+                "date": datetime(2025, 8, 1, 10, 0, 0),
+                "timeline": "Property Purchase",
+                "actor": "Lisa",
+                "emotion": "hopeful",
+                "tags": "consultation,initial-meeting",
+                "evidence_links": "/documents/consultation_notes.pdf",
+                "privileged_notes": "Client expressed concerns about financing timeline"
+            },
+            {
+                "title": "Realtor Property Showing",
+                "description": "Toured the main property with Jane (realtor) - seemed promising",
+                "date": datetime(2025, 8, 5, 14, 30, 0),
+                "timeline": "Property Purchase",
+                "actor": "Realtor",
                 "emotion": "excited",
-                "tags": "development,milestone"
+                "tags": "property-tour,viewing",
+                "evidence_links": "/photos/property_tour_2025_08_05/"
             },
             {
-                "title": "First Release",
-                "description": "Released the initial version with basic timeline functionality",
-                "date": datetime(2025, 3, 20, 14, 30, 0),
-                "timeline": "Work Projects",
-                "emotion": "accomplished",
-                "tags": "release,milestone"
+                "title": "Purchase Offer Submitted",
+                "description": "Tom submitted formal purchase offer through realtor",
+                "date": datetime(2025, 8, 8, 16, 45, 0),
+                "timeline": "Property Purchase",
+                "actor": "Tom",
+                "emotion": "nervous",
+                "tags": "offer,formal-submission",
+                "evidence_links": "/contracts/purchase_offer_v1.pdf"
             },
             {
-                "title": "User Feedback",
-                "description": "Received valuable feedback from early users",
-                "date": datetime(2025, 4, 5, 11, 15, 0),
-                "timeline": "Work Projects",
+                "title": "Bank Pre-Approval Meeting",
+                "description": "Meeting with loan officer to discuss financing options and requirements",
+                "date": datetime(2025, 8, 12, 11, 0, 0),
+                "timeline": "Financing",
+                "actor": "Bank",
+                "emotion": "cautious",
+                "tags": "pre-approval,financing",
+                "evidence_links": "/documents/preapproval_letter.pdf"
+            },
+            {
+                "title": "Counter-Offer Received",
+                "description": "Seller responded with counter-offer, needs review with attorney",
+                "date": datetime(2025, 8, 15, 9, 30, 0),
+                "timeline": "Property Purchase",
+                "actor": "Realtor",
                 "emotion": "thoughtful",
-                "tags": "feedback,improvement"
+                "tags": "counter-offer,negotiation",
+                "evidence_links": "/contracts/counter_offer_v1.pdf",
+                "privileged_notes": "Counter-offer includes unusual inspection clause - need to research precedent"
             },
             {
-                "title": "Morning Workout",
-                "description": "Started a new fitness routine",
-                "date": datetime(2025, 10, 1, 7, 0, 0),
-                "timeline": "Personal Life",
-                "emotion": "energetic",
-                "tags": "health,fitness"
-            },
-            {
-                "title": "CSV Feature Added",
-                "description": "Implemented CSV import and export functionality",
-                "date": datetime(2025, 10, 10, 16, 45, 0),
-                "timeline": "Work Projects",
-                "emotion": "satisfied",
-                "tags": "feature,enhancement"
-            },
-            {
-                "title": "Testing Panel Created",
-                "description": "Added a testing panel with database management tools",
-                "date": datetime(2025, 10, 10, 18, 0, 0),
-                "timeline": "Work Projects",
-                "emotion": "productive",
-                "tags": "testing,development,tools"
-            },
-            {
-                "title": "Client Issue Reported",
-                "description": "Client texted about urgent production system issue",
-                "date": datetime(2025, 10, 10, 8, 45, 0),
-                "timeline": "Client Communications",
+                "title": "Attorney Contract Review",
+                "description": "Brody reviewed purchase agreement and identified potential issues",
+                "date": datetime(2025, 8, 18, 14, 0, 0),
+                "timeline": "Legal Review",
+                "actor": "Attorney",
                 "emotion": "concerned",
-                "tags": "urgent,client,support"
+                "tags": "contract-review,legal-analysis",
+                "evidence_links": "/legal/contract_review_memo.pdf",
+                "privileged_notes": "Identified problematic warranty disclaimers in Section 12.3 - advise renegotiation"
+            },
+            {
+                "title": "Court Filing Deadline",
+                "description": "Deadline for filing preliminary injunction papers in unrelated case",
+                "date": datetime(2025, 8, 20, 17, 0, 0),
+                "timeline": "Other Legal Matters",
+                "actor": "Court",
+                "emotion": "stressed",
+                "tags": "deadline,filing,injunction",
+                "evidence_links": "/court_docs/prelim_injunction_draft.pdf"
+            },
+            {
+                "title": "Property Inspection Completed",
+                "description": "Professional inspection revealed minor issues, overall positive",
+                "date": datetime(2025, 8, 22, 10, 30, 0),
+                "timeline": "Property Purchase",
+                "actor": "Tom",
+                "emotion": "relieved",
+                "tags": "inspection,property-condition",
+                "evidence_links": "/reports/inspection_report_final.pdf"
+            },
+            {
+                "title": "Final Loan Approval",
+                "description": "Bank approved loan with standard conditions",
+                "date": datetime(2025, 8, 28, 15, 15, 0),
+                "timeline": "Financing",
+                "actor": "Bank",
+                "emotion": "accomplished",
+                "tags": "loan-approval,financing-complete",
+                "evidence_links": "/documents/final_loan_approval.pdf"
+            },
+            {
+                "title": "Closing Date Scheduled",
+                "description": "All parties agreed on closing date, title company confirmed",
+                "date": datetime(2025, 9, 2, 11, 45, 0),
+                "timeline": "Property Purchase",
+                "actor": "Realtor",
+                "emotion": "satisfied",
+                "tags": "closing-scheduled,milestone",
+                "evidence_links": "/scheduling/closing_confirmation.pdf"
             }
         ]
         

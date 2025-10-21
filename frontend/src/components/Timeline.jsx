@@ -38,6 +38,21 @@ export default function Timeline({
   const fileInputRef = useRef(null);
   const [expandedEvents, setExpandedEvents] = useState(new Set());
 
+  // Color mapping for different actors (dark theme compatible)
+  const getActorStyle = (actor) => {
+    const styles = {
+      'Tom': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+      'Lisa': 'bg-purple-500/20 text-purple-300 border-purple-500/30', 
+      'Realtor': 'bg-green-500/20 text-green-300 border-green-500/30',
+      'Jeff': 'bg-green-500/20 text-green-300 border-green-500/30',
+      'Court': 'bg-red-500/20 text-red-300 border-red-500/30',
+      'Bank': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+      'Attorney': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      'Brody': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+    };
+    return styles[actor] || 'bg-gray-500/20 text-gray-300 border-gray-500/30';
+  };
+
   const toggleEventExpanded = (eventId, e) => {
     e.stopPropagation(); // Prevent triggering onEventClick
     setExpandedEvents(prev => {
@@ -162,10 +177,15 @@ export default function Timeline({
                   onClick={(e) => shouldCollapse ? toggleEventExpanded(event.id, e) : onEventClick?.(event)}
                 >
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-lg font-semibold text-slate-100">
                         {event.title}
                       </p>
+                      {event.actor && (
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full border ${getActorStyle(event.actor)}`}>
+                          {event.actor}
+                        </span>
+                      )}
                       {event.audio_file && (
                         <span className="text-blue-400 text-xs">🎤</span>
                       )}
@@ -183,6 +203,14 @@ export default function Timeline({
                   </div>
                   
                   <div className="flex shrink-0 gap-2 items-start">
+                    {event.evidence_links && (
+                      <span 
+                        className="text-emerald-400 text-sm p-1" 
+                        title="Evidence attached"
+                      >
+                        📎
+                      </span>
+                    )}
                     {shouldCollapse && (
                       <button
                         type="button"

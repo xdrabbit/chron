@@ -47,16 +47,20 @@ export const deleteEvent = async (id) => {
   return data;
 };
 
-export const exportTimelinePdf = async () => {
+export const exportTimelinePdf = async (timeline = null) => {
+  const params = timeline && timeline !== "All" ? { timeline } : {};
   const response = await client.get("/events/export/pdf", {
     responseType: "blob",
+    params
   });
   return response.data;
 };
 
-export const exportTimelineCsv = async () => {
+export const exportTimelineCsv = async (timeline = null) => {
+  const params = timeline && timeline !== "All" ? { timeline } : {};
   const response = await client.get("/events/export/csv", {
     responseType: "blob",
+    params
   });
   return response.data;
 };

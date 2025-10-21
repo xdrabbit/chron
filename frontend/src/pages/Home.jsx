@@ -120,7 +120,7 @@ const Home = () => {
         setExportError(null);
         setExporting(true);
         try {
-            const blob = await exportTimelinePdf();
+            const blob = await exportTimelinePdf(currentTimeline);
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
@@ -142,7 +142,7 @@ const Home = () => {
         setExportError(null);
         setExporting(true);
         try {
-            const blob = await exportTimelineCsv();
+            const blob = await exportTimelineCsv(currentTimeline);
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = url;
