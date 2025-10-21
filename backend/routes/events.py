@@ -322,6 +322,14 @@ async def import_events_csv(file: UploadFile = File(...), session: Session = Dep
             session.commit()
             for event in imported_events:
                 session.refresh(event)
+                # Index each event in FTS5 for search
+                index_event(
+                    event_id=str(event.id),
+                    title=event.title,
+                    description=event.description,
+                    tags=event.tags,
+                    timeline=event.timeline
+                )
         
         return {
             "message": f"Successfully imported {len(imported_events)} events",
@@ -513,6 +521,10 @@ def clear_all_events(session: Session = Depends(get_session)):
             session.delete(event)
         
         session.commit()
+        
+        # Clear FTS5 index (rebuild will create empty index)
+        from backend.db.fts import rebuild_index
+        rebuild_index()
         
         return {
             "message": f"Successfully cleared {event_count} events from database",
