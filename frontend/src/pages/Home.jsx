@@ -29,6 +29,7 @@ const Home = () => {
     const visualTimelineRef = useRef(null);
     const [showTestingPanel, setShowTestingPanel] = useState(false);
     const [showSearchPanel, setShowSearchPanel] = useState(false);
+    const [showEventForm, setShowEventForm] = useState(false);
     // const [showAskPanel, setShowAskPanel] = useState(false);
     // const [showFloatingAI, setShowFloatingAI] = useState(false);
     const [showFloatingTimeline, setShowFloatingTimeline] = useState(false);
@@ -185,6 +186,11 @@ const Home = () => {
         // setShowSearchPanel(false);
     };
 
+    const handleEditEvent = (event) => {
+        setEditing(event);
+        setShowEventForm(true);  // Auto-open form when editing
+    };
+
     return (
         <>
             <header className="flex flex-col gap-1">
@@ -293,6 +299,35 @@ const Home = () => {
                 </section>
             )}
 
+            {/* Event Form - Collapsible (moved to top for easy access) */}
+            <section className="rounded-lg bg-gradient-to-br from-amber-900/30 to-slate-800 border-2 border-amber-600/50 shadow-lg">
+                <button
+                    onClick={() => setShowEventForm(!showEventForm)}
+                    className="w-full flex items-center justify-between p-4 hover:opacity-90 transition-opacity"
+                >
+                    <div className="flex items-center gap-3">
+                        <span className="text-amber-400 text-xl">✏️</span>
+                        <h3 className="text-lg font-semibold text-amber-200">
+                            {editing ? 'Edit Event' : 'Add New Event'}
+                        </h3>
+                    </div>
+                    <span className="text-amber-400 text-xl">
+                        {showEventForm ? '−' : '+'}
+                    </span>
+                </button>
+                {showEventForm && (
+                    <div className="px-4 pb-4 border-t border-amber-600/30">
+                        <EventForm
+                            key={editing ? editing.id : "new"}
+                            initialData={editing}
+                            onSubmit={handleSubmit}
+                            onCancel={() => setEditing(null)}
+                            availableTimelines={timelines.filter(t => t !== "All")}
+                        />
+                    </div>
+                )}
+            </section>
+
             {/* Search Panel - Collapsible */}
             <section className="rounded-lg bg-slate-800 border border-slate-700 shadow">
                 <button
@@ -321,7 +356,7 @@ const Home = () => {
                     events={events}
                     loading={loading}
                     error={error}
-                    onEdit={setEditing}
+                    onEdit={handleEditEvent}
                     onDelete={handleDelete}
                     onEventClick={handleEventCardClick}
                     onExport={handleExport}
@@ -332,23 +367,6 @@ const Home = () => {
                     exportError={exportError}
                     importError={importError}
                     importResult={importResult}
-                />
-            </section>
-
-            {/* Event Form - Highlighted for data entry */}
-            <section className="rounded-lg bg-gradient-to-br from-amber-900/30 to-slate-800 border-2 border-amber-600/50 p-4 shadow-lg">
-                <div className="flex items-center gap-2 mb-4">
-                    <span className="text-amber-400 text-xl">✏️</span>
-                    <h3 className="text-lg font-semibold text-amber-200">
-                        {editing ? 'Edit Event' : 'Add New Event'}
-                    </h3>
-                </div>
-                <EventForm
-                    key={editing ? editing.id : "new"}
-                    initialData={editing}
-                    onSubmit={handleSubmit}
-                    onCancel={() => setEditing(null)}
-                    availableTimelines={timelines.filter(t => t !== "All")}
                 />
             </section>
 
