@@ -6,3 +6,7 @@ reportlab
 python-multipart
 openai-whisper
 requests
+# Document parsing
+PyPDF2
+python-docx
+markdown

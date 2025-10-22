@@ -1,0 +1,31 @@
+LEGAL CASE NOTES - CONFIDENTIAL
+
+Date: October 21, 2024
+Attorney: Brody Richardson
+Case: Timeline Management System Implementation
+
+MEETING NOTES:
+- Client expressed need for comprehensive document management
+- Key requirement: full-text search across all document types
+- Priority features: drag & drop upload, real-time search indexing
+- Timeline integration essential for evidence tracking
+
+NEXT STEPS:
+1. Implement document parsing for PDF, DOCX, MD, TXT
+2. Integrate with FTS5 search system
+3. Test with sample legal documents
+4. Deploy to staging environment
+
+EVIDENCE TRACKING:
+- All uploaded documents should be automatically indexed
+- Search should work across event descriptions and document content
+- Audio transcripts already implemented successfully
+
+CLIENT FEEDBACK:
+"The audio search with jump-to functionality is beautiful. Now we need the same for documents."
+
+TECHNICAL NOTES:
+- Backend: FastAPI with document parsing service
+- Frontend: React with drag & drop interface
+- Database: SQLite with FTS5 indexing
+- Storage: Local file system with unique naming

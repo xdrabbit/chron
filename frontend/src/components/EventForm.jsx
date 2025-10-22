@@ -41,6 +41,9 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showVoiceTranscription, setShowVoiceTranscription] = useState(false);
   const [transcriptionData, setTranscriptionData] = useState(null); // Store audio file and metadata
+  const [showDocuments, setShowDocuments] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
   const dateInputRef = useRef(null);
 
   useEffect(() => {
@@ -108,6 +111,75 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
     }));
   };
 
+  // Document drag and drop handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    const validFiles = files.filter(file => {
+      const extension = file.name.toLowerCase().split('.').pop();
+      return ['pdf', 'docx', 'md', 'txt'].includes(extension);
+    });
+    
+    if (validFiles.length !== files.length) {
+      setError("Only PDF, DOCX, MD, and TXT files are supported.");
+      return;
+    }
+    
+    setDocuments(prev => [...prev, ...validFiles.map(file => ({
+      file,
+      name: file.name,
+      size: file.size,
+      id: Date.now() + Math.random()
+    }))]);
+  };
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    const validFiles = files.filter(file => {
+      const extension = file.name.toLowerCase().split('.').pop();
+      return ['pdf', 'docx', 'md', 'txt'].includes(extension);
+    });
+    
+    if (validFiles.length !== files.length) {
+      setError("Only PDF, DOCX, MD, and TXT files are supported.");
+      return;
+    }
+    
+    setDocuments(prev => [...prev, ...validFiles.map(file => ({
+      file,
+      name: file.name,
+      size: file.size,
+      id: Date.now() + Math.random()
+    }))]);
+    
+    // Clear the input
+    e.target.value = '';
+  };
+
+  const removeDocument = (documentId) => {
+    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError(null);
@@ -140,10 +212,21 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
         evidence_links: form.evidence_links.trim() || null,
       };
 
-      // If we have transcription data with audio, use the with-audio endpoint
-      if (transcriptionData && transcriptionData.audioFile) {
+      // If we have transcription data with audio or documents, use FormData
+      if ((transcriptionData && transcriptionData.audioFile) || documents.length > 0) {
         const formData = new FormData();
-        formData.append('audio_file', transcriptionData.audioFile, 'audio.mp3');
+        
+        // Add audio file if present
+        if (transcriptionData && transcriptionData.audioFile) {
+          formData.append('audio_file', transcriptionData.audioFile, 'audio.mp3');
+        }
+        
+        // Add document files if present
+        documents.forEach((doc) => {
+          formData.append('files', doc.file, doc.name);
+        });
+        
+        // Add form fields
         formData.append('title', payload.title);
         formData.append('description', payload.description);
         formData.append('timeline', payload.timeline);
@@ -153,13 +236,15 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
         if (payload.tags) formData.append('tags', payload.tags);
         if (payload.evidence_links) formData.append('evidence_links', payload.evidence_links);
         
-        await onSubmit(formData, true); // Pass flag indicating it's formData with audio
+        await onSubmit(formData, true); // Pass flag indicating it's formData with attachments
       } else {
         await onSubmit(payload);
       }
       
       setForm(initialState);
       setTranscriptionData(null);
+      setDocuments([]);
+      setShowDocuments(false);
     } catch (err) {
       setError("Unable to save event. Try again.");
     } finally {
@@ -336,8 +421,8 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
 
       {/* Additional Legal Workflow Fields */}
       <div className="flex flex-col gap-4">
-        {/* Emotion Field */}
-        <div className="flex flex-col gap-2">
+        {/* Emotion Field - Hidden but kept in database */}
+        {/* <div className="flex flex-col gap-2">
           <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
             Emotion <span className="text-slate-500">(Optional)</span>
           </label>
@@ -349,7 +434,7 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
             placeholder="e.g., frustrated, hopeful, concerned, relieved"
             className="rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
           />
-        </div>
+        </div> */}
 
         {/* Tags Field */}
         <div className="flex flex-col gap-2">
@@ -408,6 +493,96 @@ export default function EventForm({ initialData, onSubmit, onCancel, availableTi
         {showVoiceTranscription && (
           <div className="mt-3">
             <VoiceTranscriber onTranscription={handleVoiceTranscription} />
+          </div>
+        )}
+      </div>
+
+      {/* Document Attachments Section - Collapsible */}
+      <div className="border-t border-amber-600/30 pt-4">
+        <button
+          type="button"
+          onClick={() => setShowDocuments(!showDocuments)}
+          className="w-full flex items-center justify-between p-3 bg-slate-900/50 hover:bg-slate-900 rounded-lg transition-colors border border-slate-700"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-blue-400">📎</span>
+            <span className="text-sm font-semibold text-slate-200">Document Attachments</span>
+            <span className="text-xs text-slate-400">(PDF, DOCX, MD, TXT)</span>
+            {documents.length > 0 && (
+              <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
+                {documents.length}
+              </span>
+            )}
+          </div>
+          <span className="text-slate-400 text-lg">
+            {showDocuments ? '−' : '+'}
+          </span>
+        </button>
+        
+        {showDocuments && (
+          <div className="mt-3 space-y-3">
+            {/* Drag and Drop Area */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                isDragging 
+                  ? 'border-blue-400 bg-blue-500/10' 
+                  : 'border-slate-600 hover:border-slate-500'
+              }`}
+            >
+              <div className="space-y-2">
+                <div className="text-4xl text-slate-400">📄</div>
+                <div className="text-sm text-slate-300">
+                  Drag and drop documents here, or{' '}
+                  <label className="text-blue-400 hover:text-blue-300 cursor-pointer underline">
+                    browse files
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.docx,.md,.txt"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <div className="text-xs text-slate-400">
+                  Supports PDF, DOCX, MD, and TXT files
+                </div>
+              </div>
+            </div>
+
+            {/* Document List */}
+            {documents.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-slate-300">Selected Documents:</div>
+                {documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-600">
+                    <div className="flex items-center gap-3">
+                      <div className="text-blue-400">
+                        {doc.name.endsWith('.pdf') && '📕'}
+                        {doc.name.endsWith('.docx') && '📘'}
+                        {doc.name.endsWith('.md') && '📗'}
+                        {doc.name.endsWith('.txt') && '📄'}
+                      </div>
+                      <div>
+                        <div className="text-sm text-slate-200 font-medium">{doc.name}</div>
+                        <div className="text-xs text-slate-400">{formatFileSize(doc.size)}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeDocument(doc.id)}
+                      className="text-red-400 hover:text-red-300 p-1 rounded transition-colors"
+                      title="Remove document"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

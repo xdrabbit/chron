@@ -11,12 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, 
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlmodel import Session, select
 
-from backend.db.base import get_session
-from backend.db.fts import index_event, remove_from_index
-from backend.models import Event
-from backend.services.pdf_utils import build_timeline_pdf
-from backend.services.whisper_service import whisper_service
-from backend.services.summary_service import get_summary_service
+from db.base import get_session
+from db.fts import index_event, remove_from_index
+from models import Event, Attachment
+from services.pdf_utils import build_timeline_pdf
+from services.whisper_service import whisper_service
+from services.summary_service import get_summary_service
+from services.document_parser import parse_uploaded_document, DocumentParser
 
 router = APIRouter()
 
@@ -523,7 +524,7 @@ def clear_all_events(session: Session = Depends(get_session)):
         session.commit()
         
         # Clear FTS5 index (rebuild will create empty index)
-        from backend.db.fts import rebuild_index
+        from db.fts import rebuild_index
         rebuild_index()
         
         return {
@@ -637,4 +638,291 @@ def get_event_audio(event_id: str, session: Session = Depends(get_session)):
     if not audio_path.exists():
         raise HTTPException(status_code=404, detail="Audio file not found on disk")
     
-    return FileResponse(audio_path)
+    return FileResponse(audio_path, media_type="audio/mpeg")
+
+
+@router.post("/events/with-attachments")
+async def create_event_with_attachments(
+    title: str = Form(...),
+    description: str = Form(""),
+    date: str = Form(...),
+    timeline: str = Form("Default"),
+    actor: Optional[str] = Form(None),
+    emotion: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),
+    evidence_links: Optional[str] = Form(None),
+    audio_file: Optional[UploadFile] = File(None),
+    files: List[UploadFile] = File(default=[]),
+    transcribe: bool = Form(True),
+    session: Session = Depends(get_session)
+):
+    """
+    Create an event with optional audio file and/or document attachments.
+    Handles mixed attachment types in a single request.
+    """
+    try:
+        created_files = []  # Track files for cleanup on error
+        
+        # Handle audio file processing
+        audio_file_path = None
+        transcription_text = description
+        word_timestamps = None
+        summary_text = None
+        
+        if audio_file:
+            # Save audio file
+            file_ext = os.path.splitext(audio_file.filename)[1]
+            unique_filename = f"{uuid.uuid4()}{file_ext}"
+            audio_file_path = UPLOAD_DIR / unique_filename
+            created_files.append(audio_file_path)
+            
+            with open(audio_file_path, "wb") as f:
+                content = await audio_file.read()
+                f.write(content)
+            
+            # Transcribe if requested
+            if transcribe:
+                result = whisper_service.transcribe_audio(str(audio_file_path))
+                transcription_text = result["text"]
+                word_timestamps = json.dumps(result.get("words", []))
+                
+                # Generate smart summary
+                summary_service = get_summary_service()
+                summary_data = summary_service.generate_summary(transcription_text)
+                summary_text = json.dumps(summary_data)
+        
+        # Create event first
+        event = Event(
+            title=title,
+            description=transcription_text or description,
+            date=_normalize_date(date),
+            timeline=timeline,
+            actor=actor,
+            emotion=emotion,
+            tags=tags,
+            evidence_links=evidence_links,
+            audio_file=str(audio_file_path.relative_to(Path(__file__).parent.parent)) if audio_file_path else None,
+            transcription_words=word_timestamps,
+            summary=summary_text
+        )
+        
+        session.add(event)
+        session.commit()
+        session.refresh(event)
+        
+        # Handle document files
+        document_contents = []
+        
+        for uploaded_file in files:
+            if not uploaded_file.filename:
+                continue
+                
+            # Validate file type
+            if not DocumentParser.is_supported(uploaded_file.filename):
+                supported = ", ".join(DocumentParser.SUPPORTED_EXTENSIONS)
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Unsupported file type: {uploaded_file.filename}. Supported formats: {supported}"
+                )
+            
+            # Read and parse document
+            file_content = await uploaded_file.read()
+            parsed_data = parse_uploaded_document(file_content, uploaded_file.filename)
+            
+            # Create unique filename
+            file_id = str(uuid.uuid4())
+            file_extension = Path(uploaded_file.filename).suffix
+            safe_filename = f"{file_id}{file_extension}"
+            
+            # Create documents directory if it doesn't exist
+            doc_upload_dir = UPLOAD_DIR / "documents"
+            doc_upload_dir.mkdir(exist_ok=True)
+            
+            file_path = doc_upload_dir / safe_filename
+            created_files.append(file_path)
+            
+            # Save file
+            with open(file_path, "wb") as f:
+                f.write(file_content)
+            
+            # Create attachment record
+            attachment = Attachment(
+                event_id=event.id,
+                original_filename=uploaded_file.filename,
+                file_path=str(file_path.relative_to(Path(__file__).parent.parent)),
+                file_type=Path(uploaded_file.filename).suffix,
+                file_size=len(file_content),
+                mime_type=uploaded_file.content_type or "application/octet-stream",
+                parsed_content=parsed_data["content"],
+                page_count=parsed_data.get("page_count"),
+                word_count=parsed_data.get("word_count")
+            )
+            
+            session.add(attachment)
+            document_contents.append(parsed_data["content"])
+        
+        session.commit()
+        
+        # Index event and documents in FTS5 for search
+        all_content = [event.title, event.description or "", event.tags or ""]
+        all_content.extend(document_contents)
+        
+        index_event(
+            event_id=event.id,
+            title=event.title,
+            description=" ".join(all_content),  # Include document content in searchable text
+            tags=event.tags,
+            timeline=event.timeline
+        )
+        
+        return event
+        
+    except Exception as e:
+        # Clean up any files that were created
+        for file_path in created_files:
+            if file_path.exists():
+                try:
+                    os.unlink(file_path)
+                except:
+                    pass  # Ignore cleanup errors
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/events/{event_id}/documents")
+async def upload_document(
+    event_id: str,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session)
+):
+    """
+    Upload and attach a document to an event.
+    Supports PDF, DOCX, MD, and TXT files with full-text parsing.
+    """
+    # Check if event exists
+    event = session.get(Event, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Validate file type
+    if not DocumentParser.is_supported(file.filename):
+        supported = ", ".join(DocumentParser.SUPPORTED_EXTENSIONS)
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type. Supported formats: {supported}"
+        )
+    
+    try:
+        # Read file content
+        file_content = await file.read()
+        
+        # Parse document content
+        parsed_data = parse_uploaded_document(file_content, file.filename)
+        
+        # Create unique filename
+        file_id = str(uuid.uuid4())
+        file_extension = Path(file.filename).suffix
+        safe_filename = f"{file_id}{file_extension}"
+        file_path = UPLOAD_DIR / "documents" / safe_filename
+        
+        # Create documents directory
+        file_path.parent.mkdir(exist_ok=True)
+        
+        # Save file
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+        
+        # Create attachment record
+        attachment = Attachment(
+            event_id=event_id,
+            file_path=str(file_path.relative_to(Path(__file__).parent.parent)),
+            file_type=parsed_data['file_type'],
+            original_filename=file.filename,
+            parsed_content=parsed_data['content'],
+            page_count=parsed_data.get('page_count'),
+            word_count=parsed_data.get('word_count')
+        )
+        
+        session.add(attachment)
+        session.commit()
+        session.refresh(attachment)
+        
+        # Index document content in FTS5
+        # Use attachment ID for unique identification in search
+        index_event(
+            event_id=f"doc_{attachment.id}",
+            title=f"📄 {file.filename}",
+            description=parsed_data['content'],
+            tags=f"document,{parsed_data['file_type']},attachment",
+            timeline=event.timeline
+        )
+        
+        return {
+            "message": "Document uploaded successfully",
+            "attachment": attachment,
+            "parsed_info": {
+                "file_type": parsed_data['file_type'],
+                "page_count": parsed_data.get('page_count', 1),
+                "word_count": parsed_data.get('word_count', 0)
+            }
+        }
+        
+    except Exception as e:
+        # Clean up file if attachment creation fails
+        if 'file_path' in locals() and file_path.exists():
+            os.unlink(file_path)
+        raise HTTPException(status_code=500, detail=f"Document upload failed: {str(e)}")
+
+
+@router.get("/events/{event_id}/documents")
+def get_event_documents(event_id: str, session: Session = Depends(get_session)):
+    """Get all documents attached to an event"""
+    event = session.get(Event, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    return event.attachments
+
+
+@router.get("/documents/{attachment_id}")
+def download_document(attachment_id: int, session: Session = Depends(get_session)):
+    """Download a document attachment"""
+    attachment = session.get(Attachment, attachment_id)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    file_path = Path(__file__).parent.parent / attachment.file_path
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Document file not found on disk")
+    
+    return FileResponse(
+        file_path, 
+        filename=attachment.original_filename,
+        media_type="application/octet-stream"
+    )
+
+
+@router.delete("/documents/{attachment_id}")
+def delete_document(attachment_id: int, session: Session = Depends(get_session)):
+    """Delete a document attachment"""
+    attachment = session.get(Attachment, attachment_id)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    try:
+        # Remove from FTS5 index
+        remove_from_index(f"doc_{attachment.id}")
+        
+        # Delete file
+        file_path = Path(__file__).parent.parent / attachment.file_path
+        if file_path.exists():
+            os.unlink(file_path)
+        
+        # Delete database record
+        session.delete(attachment)
+        session.commit()
+        
+        return {"message": "Document deleted successfully"}
+        
+    except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")

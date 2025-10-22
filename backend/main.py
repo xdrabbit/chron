@@ -5,15 +5,15 @@ from sqlmodel import SQLModel
 import os
 
 # Import all models to ensure they are registered with SQLModel
-from backend.models import Event, Participant, Attachment, EventParticipantLink
-from backend.db.base import engine
-from backend.db.fts import create_fts_table
-from backend.routes.events import router as events_router
-from backend.routes.transcribe import router as transcribe_router
-from backend.routes.analyze import router as analyze_router
-from backend.routes.search import router as search_router
+from models import Event, Participant, Attachment, EventParticipantLink
+from db.base import engine
+from db.fts import create_fts_table
+from routes.events import router as events_router
+from routes.transcribe import router as transcribe_router
+from routes.analyze import router as analyze_router
+from routes.search import router as search_router
 # AI features disabled - FTS5 search is instant and sufficient for timeline queries
-# from backend.routes.ask import router as ask_router
+# from routes.ask import router as ask_router
 
 app = FastAPI()
 

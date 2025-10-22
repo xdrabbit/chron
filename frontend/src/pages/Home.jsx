@@ -11,7 +11,7 @@ import SearchPanel from '../components/SearchPanel';
 import FloatingTimelineViz from '../components/FloatingTimelineViz';
 import FloatingSearchPanel from '../components/FloatingSearchPanel';
 import FloatingEventForm from '../components/FloatingEventForm';
-import { getEvents, createEvent, createEventWithAudio, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv, getTimelines } from '../services/api';
+import { getEvents, createEvent, createEventWithAudio, createEventWithAttachments, updateEvent, deleteEvent, exportTimelinePdf, exportTimelineCsv, importEventsFromCsv, getTimelines } from '../services/api';
 
 const Home = () => {
     const [events, setEvents] = useState([]);
@@ -69,16 +69,34 @@ const Home = () => {
         loadTimelines();
     }, []);
 
-    const handleSubmit = async (formData, isAudio = false) => {
+    const handleSubmit = async (formData, hasAttachments = false) => {
         if (editing) {
             await updateEvent(editing.id, formData);
             setEditing(null);
             showSuccessToast('Event updated successfully!');
         } else {
-            // Use appropriate API based on whether we have audio
-            if (isAudio) {
-                await createEventWithAudio(formData);
-                showSuccessToast('Event created with audio transcription!');
+            // Determine which API to use based on attachment type
+            if (hasAttachments) {
+                // Check if formData has audio or documents
+                const hasAudio = formData.has && formData.has('audio_file');
+                const hasDocuments = formData.has && Array.from(formData.keys()).some(key => key.startsWith('document_'));
+                
+                if (hasAudio || hasDocuments) {
+                    await createEventWithAttachments(formData);
+                    let message = 'Event created successfully!';
+                    if (hasAudio && hasDocuments) {
+                        message = 'Event created with audio and document attachments!';
+                    } else if (hasAudio) {
+                        message = 'Event created with audio transcription!';
+                    } else if (hasDocuments) {
+                        message = 'Event created with document attachments!';
+                    }
+                    showSuccessToast(message);
+                } else {
+                    // Fallback to regular creation
+                    await createEvent(formData);
+                    showSuccessToast('Event created successfully!');
+                }
             } else {
                 await createEvent(formData);
                 showSuccessToast('Event created successfully!');

@@ -7,9 +7,9 @@ from sqlmodel import Session, select
 from typing import List, Optional
 import json
 
-from backend.db.base import get_session
-from backend.db.fts import search_events, rebuild_index
-from backend.models import Event
+from db.base import get_session
+from db.fts import search_events, rebuild_index
+from models import Event
 
 router = APIRouter()
 

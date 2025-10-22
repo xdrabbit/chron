@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from typing import Optional
 import logging
 
-from backend.services.whisper_service import whisper_service
+from services.whisper_service import whisper_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

@@ -120,6 +120,15 @@ export const createEventWithAudio = async (formData) => {
   return data;
 };
 
+export const createEventWithAttachments = async (formData) => {
+  const { data } = await client.post("/events/with-attachments", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return data;
+};
+
 // AI Ask API
 export const askTimeline = async (payload) => {
   // First request loads model (60-90s), subsequent requests are fast (5-10s)
