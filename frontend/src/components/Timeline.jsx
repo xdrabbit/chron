@@ -38,19 +38,19 @@ export default function Timeline({
   const fileInputRef = useRef(null);
   const [expandedEvents, setExpandedEvents] = useState(new Set());
 
-  // Color mapping for different actors (dark theme compatible)
+  // Color mapping for different actors (IMPROVED CONTRAST)
   const getActorStyle = (actor) => {
     const styles = {
-      'Tom': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-      'Lisa': 'bg-purple-500/20 text-purple-300 border-purple-500/30', 
-      'Realtor': 'bg-green-500/20 text-green-300 border-green-500/30',
-      'Jeff': 'bg-green-500/20 text-green-300 border-green-500/30',
-      'Court': 'bg-red-500/20 text-red-300 border-red-500/30',
-      'Bank': 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
-      'Attorney': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
-      'Brody': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+      'Tom': 'bg-blue-500/40 text-blue-200 border-blue-500/50',
+      'Lisa': 'bg-purple-500/40 text-purple-200 border-purple-500/50', 
+      'Realtor': 'bg-green-500/40 text-green-200 border-green-500/50',
+      'Jeff': 'bg-green-500/40 text-green-200 border-green-500/50',
+      'Court': 'bg-red-500/40 text-red-200 border-red-500/50',
+      'Bank': 'bg-yellow-500/40 text-yellow-200 border-yellow-500/50',
+      'Attorney': 'bg-indigo-500/40 text-indigo-200 border-indigo-500/50',
+      'Brody': 'bg-indigo-500/40 text-indigo-200 border-indigo-500/50',
     };
-    return styles[actor] || 'bg-gray-500/20 text-gray-300 border-gray-500/30';
+    return styles[actor] || 'bg-gray-500/40 text-gray-200 border-gray-500/50';
   };
 
   const toggleEventExpanded = (eventId, e) => {

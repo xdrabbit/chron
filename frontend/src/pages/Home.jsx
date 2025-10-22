@@ -36,6 +36,7 @@ const Home = () => {
     const [showFloatingSearch, setShowFloatingSearch] = useState(false);
     const [showFloatingForm, setShowFloatingForm] = useState(false);
     const [successMessage, setSuccessMessage] = useState(null);
+    const [actorFilter, setActorFilter] = useState("All");
 
     const loadEvents = async () => {
         setLoading(true);
@@ -191,6 +192,15 @@ const Home = () => {
         setShowEventForm(true);  // Auto-open form when editing
     };
 
+    // Filter events by actor
+    const filteredEvents = events.filter(event => {
+        if (actorFilter === "All") return true;
+        return event.actor === actorFilter;
+    });
+
+    // Get unique actors from events
+    const availableActors = ["All", ...new Set(events.map(e => e.actor).filter(Boolean))].sort();
+
     return (
         <>
             <header className="flex flex-col gap-1">
@@ -285,14 +295,43 @@ const Home = () => {
                         }
                     </span>
                 </div>
+
+                {/* Actor Filter Chips */}
+                {availableActors.length > 1 && (
+                    <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-700">
+                        <label className="text-sm font-semibold text-slate-300">
+                            Actor:
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {availableActors.map((actor) => (
+                                <button
+                                    key={actor}
+                                    onClick={() => setActorFilter(actor)}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                        actorFilter === actor
+                                            ? 'bg-blue-600 text-white' 
+                                            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                                    }`}
+                                >
+                                    {actor} {actor !== "All" && `(${events.filter(e => e.actor === actor).length})`}
+                                </button>
+                            ))}
+                        </div>
+                        {actorFilter !== "All" && (
+                            <span className="text-xs text-slate-400">
+                                Showing {filteredEvents.length} events by {actorFilter}
+                            </span>
+                        )}
+                    </div>
+                )}
             </section>
 
             {/* Visual Timeline Viewer */}
-            {events.length > 0 && (
+            {filteredEvents.length > 0 && (
                 <section>
                     <VisualTimeline
                         ref={visualTimelineRef}
-                        events={events}
+                        events={filteredEvents}
                         onEventClick={handleTimelineEventClick}
                         currentTimeline={currentTimeline}
                     />
@@ -353,7 +392,7 @@ const Home = () => {
             {/* Event List */}
             <section className="rounded-lg bg-slate-800 p-4 shadow">
                 <Timeline
-                    events={events}
+                    events={filteredEvents}
                     loading={loading}
                     error={error}
                     onEdit={handleEditEvent}
@@ -403,7 +442,7 @@ const Home = () => {
             {/* Revolutionary Floating Panels */}
             {showFloatingTimeline && (
                 <FloatingTimelineViz
-                    events={events}
+                    events={filteredEvents}
                     onEventClick={(event) => {
                         // Scroll to event in main timeline
                         if (eventListRef.current) {
