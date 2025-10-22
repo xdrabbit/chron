@@ -227,12 +227,14 @@ export default function SearchPanel({ onEventSelect }) {
                         {/* Expanded Content */}
                         {expandedResult === result.event.id && (
                             <div className="border-t border-slate-700 p-4 space-y-4">
-                                {/* Audio Player (replaces description for audio events) */}
+                                {/* Enhanced Audio Player with Search Highlighting */}
                                 {result.has_audio && result.event.audio_file ? (
                                     <AudioPlayer
                                         audioUrl={getAudioUrl(result.event.audio_file)}
                                         transcription={result.event.description}
                                         words={result.word_timestamps || []}
+                                        searchQuery={query}
+                                        searchHighlights={result.description_snippet}
                                     />
                                 ) : (
                                     /* Full Description (only for non-audio events) */

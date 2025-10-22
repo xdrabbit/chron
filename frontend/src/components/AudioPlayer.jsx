@@ -1,21 +1,30 @@
 import React, { useRef, useState, useEffect } from 'react';
 
 /**
- * AudioPlayer with Transcript Sync
+ * AudioPlayer with Transcript Sync & Search Integration
  * 
  * Features:
  * - Play/pause/seek controls
  * - Playback speed control
  * - Word-level highlighting synchronized with audio
  * - Click on words to jump to that timestamp
+ * - Search term highlighting in transcript
+ * - Jump to search matches in audio
  */
-export default function AudioPlayer({ audioUrl, transcription, words = [] }) {
+export default function AudioPlayer({ 
+    audioUrl, 
+    transcription, 
+    words = [],
+    searchQuery = '',
+    searchHighlights = ''
+}) {
     const audioRef = useRef(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [playbackRate, setPlaybackRate] = useState(1.0);
     const [activeWordIndex, setActiveWordIndex] = useState(-1);
+    const [searchMatches, setSearchMatches] = useState([]);
 
     // Update current time as audio plays
     useEffect(() => {
@@ -49,6 +58,27 @@ export default function AudioPlayer({ audioUrl, transcription, words = [] }) {
 
         setActiveWordIndex(activeIndex);
     }, [currentTime, words]);
+
+    // Find search matches in word timestamps
+    useEffect(() => {
+        if (!searchQuery || !words || words.length === 0) {
+            setSearchMatches([]);
+            return;
+        }
+
+        const query = searchQuery.toLowerCase().trim();
+        if (!query) {
+            setSearchMatches([]);
+            return;
+        }
+
+        // Find all words that match the search query
+        const matches = words
+            .map((word, index) => ({ ...word, index }))
+            .filter(word => word.word.toLowerCase().includes(query));
+
+        setSearchMatches(matches);
+    }, [searchQuery, words]);
 
     // Debug: Log words on mount
     useEffect(() => {
@@ -158,35 +188,73 @@ export default function AudioPlayer({ audioUrl, transcription, words = [] }) {
                 </div>
             </div>
 
+            {/* Search Match Navigation */}
+            {searchMatches.length > 0 && (
+                <div className="flex items-center gap-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded">
+                    <span className="text-orange-300 text-sm font-medium">
+                        🔍 {searchMatches.length} match{searchMatches.length !== 1 ? 'es' : ''} found
+                    </span>
+                    <div className="flex gap-1">
+                        {searchMatches.map((match, idx) => (
+                            <button
+                                key={idx}
+                                onClick={() => jumpToWord(match)}
+                                className="px-2 py-1 text-xs bg-orange-600 hover:bg-orange-500 text-white rounded transition-colors"
+                                title={`Jump to "${match.word}" at ${formatTime(match.start)}`}
+                            >
+                                {idx + 1}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Transcript with Highlighting */}
             {words && words.length > 0 ? (
                 <div className="max-h-96 overflow-y-auto bg-slate-900 rounded p-4">
                     <div className="text-slate-200 leading-relaxed">
-                        {words.map((word, index) => (
-                            <span
-                                key={index}
-                                onClick={() => jumpToWord(word)}
-                                className={`cursor-pointer transition-colors inline-block mx-0.5 ${
-                                    index === activeWordIndex
-                                        ? 'bg-yellow-400 text-slate-900 font-semibold px-1 rounded'
-                                        : 'hover:bg-slate-700 hover:text-white'
-                                }`}
-                                title={`${formatTime(word.start)} - ${formatTime(word.end)}`}
-                            >
-                                {word.word}
-                            </span>
-                        ))}
+                        {words.map((word, index) => {
+                            const isActive = index === activeWordIndex;
+                            const isSearchMatch = searchMatches.some(match => match.index === index);
+                            
+                            return (
+                                <span
+                                    key={index}
+                                    onClick={() => jumpToWord(word)}
+                                    className={`cursor-pointer transition-colors inline-block mx-0.5 px-1 rounded ${
+                                        isActive
+                                            ? 'bg-yellow-400 text-slate-900 font-semibold'
+                                            : isSearchMatch
+                                            ? 'bg-orange-500 text-white font-medium ring-2 ring-orange-300'
+                                            : 'hover:bg-slate-700 hover:text-white'
+                                    }`}
+                                    title={`${formatTime(word.start)} - ${formatTime(word.end)}${isSearchMatch ? ' (Search Match)' : ''}`}
+                                >
+                                    {word.word}
+                                </span>
+                            );
+                        })}
                     </div>
                 </div>
             ) : (
                 <div className="bg-slate-900 rounded p-4">
-                    <p className="text-slate-300 whitespace-pre-wrap">{transcription}</p>
+                    {searchHighlights ? (
+                        <p 
+                            className="text-slate-300 whitespace-pre-wrap"
+                            dangerouslySetInnerHTML={{ __html: searchHighlights }}
+                        />
+                    ) : (
+                        <p className="text-slate-300 whitespace-pre-wrap">{transcription}</p>
+                    )}
                 </div>
             )}
 
             {/* Help Text */}
-            <div className="text-xs text-slate-400">
-                💡 <strong>Tip:</strong> Click on any word in the transcript to jump to that moment in the audio
+            <div className="text-xs text-slate-400 space-y-1">
+                <div>💡 <strong>Tip:</strong> Click on any word in the transcript to jump to that moment in the audio</div>
+                {searchMatches.length > 0 && (
+                    <div>🎯 <strong>Search:</strong> Orange highlighted words match your query - click numbered buttons to jump between matches</div>
+                )}
             </div>
         </div>
     );
