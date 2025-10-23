@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
+import AudioPlayer from './AudioPlayer';
 
 const EventCard = ({ event }) => {
+    const [showAudio, setShowAudio] = useState(false);
+    
     // Color mapping for different actors (IMPROVED CONTRAST)
     const getActorStyle = (actor) => {
         const styles = {
@@ -35,6 +38,25 @@ const EventCard = ({ event }) => {
         });
     };
 
+    // Get audio URL for playback
+    const getAudioUrl = (audioFile) => {
+        if (!audioFile) return null;
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        // Remove the 'backend/' prefix if present
+        const cleanPath = audioFile.replace(/^backend\//, '');
+        return `${baseUrl}/${cleanPath}`;
+    };
+
+    // Parse word timestamps
+    const getWordTimestamps = () => {
+        if (!event.transcription_words) return [];
+        try {
+            return JSON.parse(event.transcription_words);
+        } catch {
+            return [];
+        }
+    };
+
     return (
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-4 hover:bg-slate-750 transition-colors">
             <div className="flex items-start justify-between mb-2">
@@ -56,7 +78,21 @@ const EventCard = ({ event }) => {
                 )}
             </div>
             
-            <p className="text-slate-300 mb-3">{event.description}</p>
+            {/* Show description only if no audio, or if audio player is collapsed */}
+            {(!event.audio_file || !showAudio) && (
+                <p className="text-slate-300 mb-3 whitespace-pre-wrap">{event.description}</p>
+            )}
+            
+            {/* Audio Player */}
+            {event.audio_file && showAudio && (
+                <div className="mb-4">
+                    <AudioPlayer
+                        audioUrl={getAudioUrl(event.audio_file)}
+                        transcription={event.description}
+                        words={getWordTimestamps()}
+                    />
+                </div>
+            )}
             
             {/* Additional metadata */}
             <div className="flex flex-wrap gap-2 text-xs">
@@ -80,9 +116,12 @@ const EventCard = ({ event }) => {
                     </button>
                 )}
                 {event.audio_file && (
-                    <span className="bg-purple-900/30 text-purple-300 px-2 py-1 rounded">
-                        🎤 Audio
-                    </span>
+                    <button
+                        onClick={() => setShowAudio(!showAudio)}
+                        className="bg-purple-900/30 text-purple-300 px-2 py-1 rounded hover:bg-purple-800/40 transition-colors cursor-pointer"
+                    >
+                        🎤 {showAudio ? 'Hide' : 'Show'} Audio
+                    </button>
                 )}
             </div>
         </div>
