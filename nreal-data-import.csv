@@ -1,0 +1,16 @@
+title,description,date,timeline,actor,emotion,tags,evidence_links
+Pre-Mediation Prep,"Structured mediation narrative; established property valuation range ($1.6M anchor → $1.1M concession).",2025-07-24,House Sale,Tom,focused,mediation,documents/2025-07-24_prep_notes.pdf
+Stipulation Signed,"Final stipulation executed via CzMediation; defines property-sale terms and 4 % incentive clause for Lisa.",2025-08-05,House Sale,Lisa,composed,stipulation,/evidence/legal/Ashby_Stipulation_vfinal.pdf
+Lisa Realtor Proposal,"Required to submit three realtor names without prior personal connection.",2025-08-09,House Sale,Lisa,calculating,realtor_list,/evidence/legal/FFCL-DNLD.pdf
+Tom Selects Realtor,"Selected Jason Knight (Ivie Avenue Real Estate); disqualified HG Nelson for prior relationship.",2025-08-12,House Sale,Tom,decisive,selection,/evidence/emails/2025-08-12_selection_notice.pdf
+Listing Agreement Signed by Tom,"Tom executed UAR Exclusive Right to Sell Agreement for 364 E 280 S Alpine UT.",2025-08-22,House Sale,Tom,procedural,listing,/evidence/contracts/Exclusive_Right_to_Sell.pdf
+Decree of Divorce Entered,"Judge Wright entered final Decree; confirmed 50/50 split and 4 % incentive clause.",2025-08-31,Legal,Brody,formal,decree,/evidence/legal/DECREE-DNLD.pdf
+Listing Agreement Signed by Lisa,"Lisa countersigned Knight listing; contract valid through Feb 22 2026.",2025-09-16,House Sale,Lisa,reluctant,listing,/evidence/contracts/Exclusive_Right_to_Sell.pdf
+Lisa Memo Filed,"Filed memorandum with Utah State Courts (likely delay motion).",2025-09-22,Legal,Lisa,strategic,delay,/evidence/legal/LISA-MEMO.pdf
+Motion to Enforce Filed,"Brody Miles filed Verified Motion to Enforce and for Sanctions.",2025-09-24,Legal,Brody,assertive,enforcement,/evidence/legal/v-motion-to-enforce.pdf
+Contempt Allegations,"Lisa refused realtor access and price recommendation ($1.4 M vs $1.15 M).",2025-09-24,Legal,Tom,frustrated,noncompliance,/evidence/emails/2025-09-24_contested_price.pdf
+Realtor Transition,"Jason Knight replaced with Jeff Daniels due to Lisa’s noncooperation.",2025-10-05,House Sale,Tom,decisive,realtor_change,/evidence/emails/2025-10-05_realtor_transition.pdf
+Mediation Report Addendum,"Follow-up report logged showing Lisa’s continued noncompliance and property neglect.",2025-10-12,Legal,Tom,methodical,report,/evidence/reports/Mediation_Report_Addendum_2025-10-12.pdf
+Hearing Scheduled,"Show-cause hearing set for Nov 17 2025 at 8:30 AM before Commissioner Snow.",2025-10-17,Legal,Brody,organized,hearing,/evidence/court/hearing_notice.pdf
+Thread Seeded – Enforcement Phase,"Opened 1027T thread to track realtor actions and Nov 17 preparation.",2025-10-27,Legal,Tom,focused,thread,/evidence/json/1027T_seed.json
+Farm Bureau Claim Discovered,"Email from Farm Bureau (FBFS) revealed an open claim filed without Tom’s knowledge (Possibly by Lisa). Agent David Nigbur requested attention to claim # B110802P00.",2025-10-27,Insurance,Tom,alarmed,insurance_claim,/evidence/emails/2025-10-27_FarmBureau_Claim.png

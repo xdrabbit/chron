@@ -218,3 +218,11 @@ vite.config.ts.timestamp*
 ._*
 data/chronicle.db
 backup-10092025-full.tar.gz
+
+# Uploaded audio files - too large for git
+backend/uploads/
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.webm

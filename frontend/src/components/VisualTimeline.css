@@ -1,0 +1,134 @@
+/* Custom styling for vis-timeline */
+.vis-timeline-custom {
+  background-color: #1e293b; /* slate-800 */
+  border: none;
+}
+
+/* Timeline background */
+.vis-timeline .vis-panel {
+  background-color: #1e293b;
+}
+
+/* Timeline items (events) */
+.vis-item {
+  background-color: #3b82f6; /* blue-500 */
+  border-color: #2563eb; /* blue-600 */
+  color: #f1f5f9; /* slate-100 - lighter text */
+  border-radius: 4px;
+  font-size: 12px;
+  padding: 2px 6px;
+  font-weight: 500; /* slightly bolder for better readability */
+}
+
+.vis-item.vis-selected {
+  background-color: #10b981; /* green-500 */
+  border-color: #059669; /* green-600 */
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+}
+
+.vis-item.vis-point {
+  background-color: #3b82f6;
+  border-color: #2563eb;
+  border-width: 2px;
+}
+
+.vis-item.vis-point.vis-selected {
+  background-color: #10b981;
+  border-color: #059669;
+}
+
+/* Timeline axis */
+.vis-time-axis .vis-text {
+  color: #cbd5e1; /* slate-300 */
+  font-size: 11px;
+}
+
+.vis-time-axis .vis-text.vis-major {
+  color: #e2e8f0; /* slate-200 */
+  font-weight: 600;
+}
+
+.vis-time-axis .vis-grid.vis-minor {
+  border-color: #334155; /* slate-700 */
+}
+
+.vis-time-axis .vis-grid.vis-major {
+  border-color: #475569; /* slate-600 */
+}
+
+/* Current time line */
+.vis-current-time {
+  background-color: #ef4444; /* red-500 */
+  width: 2px;
+}
+
+/* Groups (timeline categories) */
+.vis-labelset .vis-label {
+  background-color: #334155; /* slate-700 */
+  border-color: #475569; /* slate-600 */
+  color: #e2e8f0; /* slate-200 */
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 8px;
+}
+
+.vis-foreground .vis-group {
+  border-color: #475569;
+}
+
+/* Tooltip */
+.vis-tooltip {
+  background-color: #1e293b !important; /* slate-800 */
+  border: 1px solid #475569 !important; /* slate-600 */
+  color: #e2e8f0 !important; /* slate-200 */
+  padding: 8px !important;
+  border-radius: 6px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+  font-size: 12px !important;
+  max-width: 300px;
+}
+
+/* Timeline groups by category */
+.vis-item.timeline-group-personal-life {
+  background-color: #8b5cf6; /* purple-500 */
+  border-color: #7c3aed; /* purple-600 */
+}
+
+.vis-item.timeline-group-work {
+  background-color: #f59e0b; /* amber-500 */
+  border-color: #d97706; /* amber-600 */
+}
+
+.vis-item.timeline-group-default {
+  background-color: #3b82f6; /* blue-500 */
+  border-color: #2563eb; /* blue-600 */
+}
+
+/* Scrollbar styling */
+.vis-timeline::-webkit-scrollbar {
+  height: 8px;
+}
+
+.vis-timeline::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+.vis-timeline::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+.vis-timeline::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Hover effect */
+.vis-item:hover {
+  filter: brightness(1.1);
+  cursor: pointer;
+}
+
+/* Animation for item selection */
+.vis-item {
+  transition: all 0.2s ease;
+}

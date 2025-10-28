@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import { VoiceTranscriber } from "./VoiceTranscriber";
 
 const initialState = {
   title: "",
   description: "",
   date: "",
+  time: "",
+  timeline: "Default",
+  actor: "",
+  emotion: "",
+  tags: "",
+  evidence_links: "",
 };
 
 const formatDateInput = (value) => {
@@ -17,9 +24,26 @@ const formatDateInput = (value) => {
   return parsed.toISOString().slice(0, 10);
 };
 
-export default function EventForm({ initialData, onSubmit, onCancel }) {
+const formatTimeInput = (value) => {
+  if (!value) {
+    return "";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  return parsed.toISOString().slice(11, 16); // HH:mm format
+};
+
+export default function EventForm({ initialData, onSubmit, onCancel, availableTimelines = [] }) {
   const [form, setForm] = useState(initialState);
   const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showVoiceTranscription, setShowVoiceTranscription] = useState(false);
+  const [transcriptionData, setTranscriptionData] = useState(null); // Store audio file and metadata
+  const [showDocuments, setShowDocuments] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
   const dateInputRef = useRef(null);
 
   useEffect(() => {
@@ -28,6 +52,12 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
         title: initialData.title ?? "",
         description: initialData.description ?? "",
         date: formatDateInput(initialData.date),
+        time: formatTimeInput(initialData.date),
+        timeline: initialData.timeline ?? "Default",
+        actor: initialData.actor ?? "",
+        emotion: initialData.emotion ?? "",
+        tags: initialData.tags ?? "",
+        evidence_links: initialData.evidence_links ?? "",
       });
     } else {
       setForm(initialState);
@@ -47,26 +77,178 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
     dateInputRef.current?.focus();
   };
 
+  const setCurrentTime = () => {
+    const now = new Date();
+    const timeString = now.toTimeString().slice(0, 5); // HH:mm format
+    setForm(previous => ({ ...previous, time: timeString }));
+  };
+
+  const setCurrentDate = () => {
+    const now = new Date();
+    const dateString = now.toISOString().slice(0, 10); // YYYY-MM-DD format
+    setForm(previous => ({ ...previous, date: dateString }));
+  };
+
+  const setNow = () => {
+    const now = new Date();
+    setForm(previous => ({ 
+      ...previous, 
+      date: now.toISOString().slice(0, 10),
+      time: now.toTimeString().slice(0, 5)
+    }));
+  };
+
+  const handleVoiceTranscription = (data) => {
+    // Store the full transcription data including audio file and word timestamps
+    setTranscriptionData(data);
+    
+    // Put the transcription text in the description field
+    setForm(previous => ({ 
+      ...previous, 
+      description: previous.description ? 
+        `${previous.description}\n\n${data.transcription}` : 
+        data.transcription
+    }));
+  };
+
+  // Document drag and drop handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    const validFiles = files.filter(file => {
+      const extension = file.name.toLowerCase().split('.').pop();
+      return ['pdf', 'docx', 'md', 'txt'].includes(extension);
+    });
+    
+    if (validFiles.length !== files.length) {
+      setError("Only PDF, DOCX, MD, and TXT files are supported.");
+      return;
+    }
+    
+    setDocuments(prev => [...prev, ...validFiles.map(file => ({
+      file,
+      name: file.name,
+      size: file.size,
+      id: Date.now() + Math.random()
+    }))]);
+  };
+
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files);
+    const validFiles = files.filter(file => {
+      const extension = file.name.toLowerCase().split('.').pop();
+      return ['pdf', 'docx', 'md', 'txt'].includes(extension);
+    });
+    
+    if (validFiles.length !== files.length) {
+      setError("Only PDF, DOCX, MD, and TXT files are supported.");
+      return;
+    }
+    
+    setDocuments(prev => [...prev, ...validFiles.map(file => ({
+      file,
+      name: file.name,
+      size: file.size,
+      id: Date.now() + Math.random()
+    }))]);
+    
+    // Clear the input
+    e.target.value = '';
+  };
+
+  const removeDocument = (documentId) => {
+    setDocuments(prev => prev.filter(doc => doc.id !== documentId));
+  };
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError(null);
+    setIsSubmitting(true);
 
-    if (!form.title.trim() || !form.date) {
-      setError("Please provide at least a title and date.");
+    if (!form.title.trim() || !form.date || !form.timeline.trim()) {
+      setError("Please provide at least a title, date, and timeline.");
+      setIsSubmitting(false);
       return;
     }
 
     try {
+      // Combine date and time
+      let dateTimeString;
+      if (form.time) {
+        dateTimeString = `${form.date}T${form.time}:00`;
+      } else {
+        // If no time specified, default to noon
+        dateTimeString = `${form.date}T12:00:00`;
+      }
+
       const payload = {
         title: form.title.trim(),
         description: form.description.trim(),
-        date: new Date(form.date).toISOString(),
+        timeline: form.timeline.trim(),
+        date: new Date(dateTimeString).toISOString(),
+        actor: form.actor.trim() || null,
+        emotion: form.emotion.trim() || null,
+        tags: form.tags.trim() || null,
+        evidence_links: form.evidence_links.trim() || null,
       };
 
-      await onSubmit(payload);
+      // If we have transcription data with audio or documents, use FormData
+      if ((transcriptionData && transcriptionData.audioFile) || documents.length > 0) {
+        const formData = new FormData();
+        
+        // Add audio file if present
+        if (transcriptionData && transcriptionData.audioFile) {
+          formData.append('audio_file', transcriptionData.audioFile, 'audio.mp3');
+        }
+        
+        // Add document files if present
+        documents.forEach((doc) => {
+          formData.append('files', doc.file, doc.name);
+        });
+        
+        // Add form fields
+        formData.append('title', payload.title);
+        formData.append('description', payload.description);
+        formData.append('timeline', payload.timeline);
+        formData.append('date', payload.date);
+        if (payload.actor) formData.append('actor', payload.actor);
+        if (payload.emotion) formData.append('emotion', payload.emotion);
+        if (payload.tags) formData.append('tags', payload.tags);
+        if (payload.evidence_links) formData.append('evidence_links', payload.evidence_links);
+        
+        await onSubmit(formData, true); // Pass flag indicating it's formData with attachments
+      } else {
+        await onSubmit(payload);
+      }
+      
       setForm(initialState);
+      setTranscriptionData(null);
+      setDocuments([]);
+      setShowDocuments(false);
     } catch (err) {
       setError("Unable to save event. Try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -109,17 +291,94 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
 
       <div className="flex flex-col gap-2">
         <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
-          Date
+          Timeline
         </label>
         <div className="flex gap-2">
-          <input
-            ref={dateInputRef}
-            type="date"
-            name="date"
-            value={form.date}
+          <select
+            name="timeline"
+            value={form.timeline}
             onChange={handleChange}
             className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          >
+            <option value="Default">Default</option>
+            {availableTimelines.map((timeline) => (
+              <option key={timeline} value={timeline}>
+                {timeline}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            name="timeline"
+            value={form.timeline}
+            onChange={handleChange}
+            placeholder="Or type new timeline"
+            className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
           />
+        </div>
+        <p className="text-xs text-slate-400">
+          Select existing timeline or type a new one (e.g., "Work Projects", "Personal Life").
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+          Actor <span className="text-slate-500">(Optional)</span>
+        </label>
+        <div className="flex gap-2">
+          <select
+            name="actor"
+            value={form.actor}
+            onChange={handleChange}
+            className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          >
+            <option value="">Select actor...</option>
+            <option value="Tom">Tom</option>
+            <option value="Lisa">Lisa</option>
+            <option value="Realtor">Realtor</option>
+            <option value="Court">Court</option>
+            <option value="Bank">Bank</option>
+            <option value="Attorney">Attorney</option>
+            <option value="Other">Other</option>
+          </select>
+          <input
+            type="text"
+            name="actor"
+            value={form.actor}
+            onChange={handleChange}
+            placeholder="Or type custom actor"
+            className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+        <p className="text-xs text-slate-400">
+          Who was responsible for this event? Helps with filtering and legal organization.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+          Date & Time
+        </label>
+        <div className="flex gap-2">
+          <div className="flex flex-1 gap-2">
+            <input
+              ref={dateInputRef}
+              type="date"
+              name="date"
+              value={form.date}
+              onChange={handleChange}
+              className="flex-1 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+            />
+            <input
+              type="time"
+              name="time"
+              value={form.time}
+              onChange={handleChange}
+              placeholder="15:43"
+              title="24-hour format (e.g., 15:43 for 3:43 PM)"
+              className="w-24 rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+            />
+          </div>
           <button
             type="button"
             onClick={openDatePicker}
@@ -129,6 +388,203 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
             Pick
           </button>
         </div>
+        
+        {/* Quick Time Presets */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={setNow}
+            className="rounded border border-green-600 bg-green-600/10 px-2 py-1 text-xs font-semibold text-green-200 hover:bg-green-600/20 focus:outline-none focus:ring-1 focus:ring-green-400"
+          >
+            Now
+          </button>
+          <button
+            type="button"
+            onClick={setCurrentDate}
+            className="rounded border border-blue-600 bg-blue-600/10 px-2 py-1 text-xs font-semibold text-blue-200 hover:bg-blue-600/20 focus:outline-none focus:ring-1 focus:ring-blue-400"
+          >
+            Today
+          </button>
+          <button
+            type="button"
+            onClick={setCurrentTime}
+            className="rounded border border-purple-600 bg-purple-600/10 px-2 py-1 text-xs font-semibold text-purple-200 hover:bg-purple-600/20 focus:outline-none focus:ring-1 focus:ring-purple-400"
+          >
+            Current Time
+          </button>
+        </div>
+        
+        <p className="text-xs text-slate-400">
+          Use 24-hour format (e.g., 15:43 for 3:43 PM). Time is optional - defaults to 12:00 if not specified.
+        </p>
+      </div>
+
+      {/* Additional Legal Workflow Fields */}
+      <div className="flex flex-col gap-4">
+        {/* Emotion Field - Hidden but kept in database */}
+        {/* <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+            Emotion <span className="text-slate-500">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            name="emotion"
+            value={form.emotion}
+            onChange={handleChange}
+            placeholder="e.g., frustrated, hopeful, concerned, relieved"
+            className="rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+        </div> */}
+
+        {/* Tags Field */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+            Tags <span className="text-slate-500">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            name="tags"
+            value={form.tags}
+            onChange={handleChange}
+            placeholder="e.g., urgent, legal, communication, property"
+            className="rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+          <p className="text-xs text-slate-400">
+            Comma-separated keywords for easier searching and organization.
+          </p>
+        </div>
+
+        {/* Evidence Links Field */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold uppercase tracking-wide text-slate-300">
+            Evidence Links <span className="text-slate-500">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            name="evidence_links"
+            value={form.evidence_links}
+            onChange={handleChange}
+            placeholder="e.g., photos/walkthrough.pdf, docs/contract.pdf, https://example.com/doc"
+            className="rounded border border-slate-600 bg-slate-900 p-2 text-slate-100 focus:border-blue-500 focus:outline-none"
+          />
+          <p className="text-xs text-slate-400">
+            File paths or URLs to supporting documents, photos, or evidence.
+          </p>
+        </div>
+      </div>
+
+      {/* Voice Transcription Section - Collapsible */}
+      <div className="border-t border-amber-600/30 pt-4">
+        <button
+          type="button"
+          onClick={() => setShowVoiceTranscription(!showVoiceTranscription)}
+          className="w-full flex items-center justify-between p-3 bg-slate-900/50 hover:bg-slate-900 rounded-lg transition-colors border border-slate-700"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-purple-400">🎤</span>
+            <span className="text-sm font-semibold text-slate-200">Voice Transcription</span>
+            <span className="text-xs text-slate-400">(Optional)</span>
+          </div>
+          <span className="text-slate-400 text-lg">
+            {showVoiceTranscription ? '−' : '+'}
+          </span>
+        </button>
+        
+        {showVoiceTranscription && (
+          <div className="mt-3">
+            <VoiceTranscriber onTranscription={handleVoiceTranscription} />
+          </div>
+        )}
+      </div>
+
+      {/* Document Attachments Section - Collapsible */}
+      <div className="border-t border-amber-600/30 pt-4">
+        <button
+          type="button"
+          onClick={() => setShowDocuments(!showDocuments)}
+          className="w-full flex items-center justify-between p-3 bg-slate-900/50 hover:bg-slate-900 rounded-lg transition-colors border border-slate-700"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-blue-400">📎</span>
+            <span className="text-sm font-semibold text-slate-200">Document Attachments</span>
+            <span className="text-xs text-slate-400">(PDF, DOCX, MD, TXT)</span>
+            {documents.length > 0 && (
+              <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded-full">
+                {documents.length}
+              </span>
+            )}
+          </div>
+          <span className="text-slate-400 text-lg">
+            {showDocuments ? '−' : '+'}
+          </span>
+        </button>
+        
+        {showDocuments && (
+          <div className="mt-3 space-y-3">
+            {/* Drag and Drop Area */}
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                isDragging 
+                  ? 'border-blue-400 bg-blue-500/10' 
+                  : 'border-slate-600 hover:border-slate-500'
+              }`}
+            >
+              <div className="space-y-2">
+                <div className="text-4xl text-slate-400">📄</div>
+                <div className="text-sm text-slate-300">
+                  Drag and drop documents here, or{' '}
+                  <label className="text-blue-400 hover:text-blue-300 cursor-pointer underline">
+                    browse files
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.docx,.md,.txt"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                <div className="text-xs text-slate-400">
+                  Supports PDF, DOCX, MD, and TXT files
+                </div>
+              </div>
+            </div>
+
+            {/* Document List */}
+            {documents.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-slate-300">Selected Documents:</div>
+                {documents.map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-600">
+                    <div className="flex items-center gap-3">
+                      <div className="text-blue-400">
+                        {doc.name.endsWith('.pdf') && '📕'}
+                        {doc.name.endsWith('.docx') && '📘'}
+                        {doc.name.endsWith('.md') && '📗'}
+                        {doc.name.endsWith('.txt') && '📄'}
+                      </div>
+                      <div>
+                        <div className="text-sm text-slate-200 font-medium">{doc.name}</div>
+                        <div className="text-xs text-slate-400">{formatFileSize(doc.size)}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeDocument(doc.id)}
+                      className="text-red-400 hover:text-red-300 p-1 rounded transition-colors"
+                      title="Remove document"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -140,15 +596,28 @@ export default function EventForm({ initialData, onSubmit, onCancel }) {
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          disabled={isSubmitting}
+          className={`rounded px-4 py-2 text-sm font-semibold text-white focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all flex items-center gap-2 ${
+            isSubmitting 
+              ? 'bg-blue-700 animate-pulse cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-500'
+          }`}
         >
-          {isEditing ? "Update Event" : "Add Event"}
+          {isSubmitting ? (
+            <>
+              <span className="animate-spin-slow">⏳</span>
+              <span>{transcriptionData ? 'Transcribing & Saving...' : 'Saving...'}</span>
+            </>
+          ) : (
+            <span>{isEditing ? "Update Event" : "Add Event"}</span>
+          )}
         </button>
         {isEditing && (
           <button
             type="button"
             onClick={handleCancel}
-            className="rounded border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500"
+            disabled={isSubmitting}
+            className="rounded border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
