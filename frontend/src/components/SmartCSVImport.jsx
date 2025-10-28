@@ -146,13 +146,44 @@ export default function SmartCSVImport({ onImport, onClose }) {
         }
     };
 
+    const handleKeyDown = (e) => {
+        // Handle Ctrl+V / Cmd+V paste
+        if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+            // Let the browser handle the paste naturally
+            setTimeout(() => {
+                const value = e.target.value;
+                if (value !== csvData) {
+                    handlePasteData({ target: { value } });
+                }
+            }, 10);
+        }
+    };
+
     const handleClipboardPaste = async () => {
         try {
+            // Check if we have clipboard API access
+            if (!navigator.clipboard || !navigator.clipboard.readText) {
+                setError('Clipboard access not available. Please paste manually with Ctrl+V.');
+                textareaRef.current?.focus();
+                return;
+            }
+
+            // Try to read from clipboard
             const text = await navigator.clipboard.readText();
+            
+            if (!text || text.trim().length === 0) {
+                setError('Clipboard is empty or could not be read. Try copying the CSV data again.');
+                return;
+            }
+
             setCsvData(text);
             handlePasteData({ target: { value: text } });
+            
         } catch (err) {
-            setError('Could not read from clipboard. Please paste manually.');
+            console.log('Clipboard read error:', err);
+            // Focus textarea for manual paste
+            setError('Could not read from clipboard. Please paste manually with Ctrl+V in the text area below.');
+            textareaRef.current?.focus();
         }
     };
 
@@ -186,10 +217,13 @@ export default function SmartCSVImport({ onImport, onClose }) {
                         <h3 className="text-blue-300 font-semibold mb-2">📋 How to use:</h3>
                         <ol className="text-blue-200 text-sm space-y-1 list-decimal list-inside">
                             <li>Copy CSV data from your AI assistant (ChatGPT, Claude, etc.)</li>
-                            <li>Paste it in the text area below (Ctrl+V or click "Paste from Clipboard")</li>
+                            <li><strong>Click in the text area below</strong> and paste with <kbd className="bg-blue-800 px-1 rounded">Ctrl+V</kbd> (or <kbd className="bg-blue-800 px-1 rounded">Cmd+V</kbd> on Mac)</li>
                             <li>Review the preview of parsed events</li>
                             <li>Click "Import Events" to add them to your timeline</li>
                         </ol>
+                        <div className="mt-3 p-2 bg-amber-900/30 border border-amber-500/30 rounded text-amber-200 text-xs">
+                            💡 <strong>Tip:</strong> If clipboard button doesn't work, manually paste into the text area - this is more reliable across different browsers.
+                        </div>
                     </div>
 
                     {/* CSV Input Area */}
@@ -200,21 +234,24 @@ export default function SmartCSVImport({ onImport, onClose }) {
                                 onClick={handleClipboardPaste}
                                 className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
                             >
-                                📋 Paste from Clipboard
+                                📋 Try Clipboard Paste
                             </button>
                         </div>
                         <textarea
                             ref={textareaRef}
                             value={csvData}
                             onChange={handlePasteData}
+                            onKeyDown={handleKeyDown}
                             placeholder="Paste your AI-generated CSV data here...
+
+👆 CLICK HERE and paste with Ctrl+V (or Cmd+V on Mac)
 
 Example:
 title,description,date,timeline,actor,emotion,tags,evidence_links
 Meeting with Client,Initial consultation about the case,2025-10-27 10:00:00,Case Name,Attorney,professional,meeting,/docs/consultation.pdf"
-                            className="w-full h-48 p-3 bg-slate-900 text-white rounded border border-slate-600 
-                                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-                                     font-mono text-sm"
+                            className="w-full h-48 p-3 bg-slate-900 text-white rounded border-2 border-slate-600 
+                                     focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                                     font-mono text-sm transition-colors"
                         />
                     </div>
 
