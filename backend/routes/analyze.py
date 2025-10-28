@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
-from services.nlp_local import analyze_text_local
+from ..services.nlp_local import analyze_text_local
 
 router = APIRouter()
 

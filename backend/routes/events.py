@@ -11,13 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, 
 from fastapi.responses import StreamingResponse, FileResponse
 from sqlmodel import Session, select
 
-from db.base import get_session
-from db.fts import index_event, remove_from_index
-from models import Event, Attachment
-from services.pdf_utils import build_timeline_pdf
-from services.whisper_service import whisper_service
-from services.summary_service import get_summary_service
-from services.document_parser import parse_uploaded_document, DocumentParser
+from ..db.base import get_session
+from ..db.fts import index_event, remove_from_index
+from ..models import Event, Attachment
+from ..services.pdf_utils import build_timeline_pdf
+from ..services.whisper_service import whisper_service
+from ..services.summary_service import get_summary_service
+from ..services.document_parser import parse_uploaded_document, DocumentParser
 
 router = APIRouter()
 
@@ -524,7 +524,7 @@ def clear_all_events(session: Session = Depends(get_session)):
         session.commit()
         
         # Clear FTS5 index (rebuild will create empty index)
-        from db.fts import rebuild_index
+        from ..db.fts import rebuild_index
         rebuild_index()
         
         return {
