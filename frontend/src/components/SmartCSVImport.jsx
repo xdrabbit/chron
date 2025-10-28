@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 /**
  * SmartCSVImport - AI-Generated CSV Paste Interface
@@ -13,6 +13,14 @@ export default function SmartCSVImport({ onImport, onClose }) {
     const [isImporting, setIsImporting] = useState(false);
     const [error, setError] = useState('');
     const textareaRef = useRef(null);
+
+        // Start with clean state
+    useEffect(() => {
+        setCsvData('');
+        setError('');
+        setParsedEvents([]);
+        setShowPreview(false);
+    }, []);
 
     const parseCSVData = (rawData) => {
         try {
@@ -91,6 +99,8 @@ export default function SmartCSVImport({ onImport, onClose }) {
         const data = e.target.value;
         setCsvData(data);
         setError('');
+        setParsedEvents([]); // Clear previous parsed data
+        setShowPreview(false); // Hide preview until new data is parsed
         
         if (data.trim()) {
             try {
@@ -146,44 +156,16 @@ export default function SmartCSVImport({ onImport, onClose }) {
         }
     };
 
-    const handleKeyDown = (e) => {
-        // Handle Ctrl+V / Cmd+V paste
-        if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-            // Let the browser handle the paste naturally
-            setTimeout(() => {
-                const value = e.target.value;
-                if (value !== csvData) {
-                    handlePasteData({ target: { value } });
-                }
-            }, 10);
-        }
-    };
-
     const handleClipboardPaste = async () => {
         try {
-            // Check if we have clipboard API access
-            if (!navigator.clipboard || !navigator.clipboard.readText) {
-                setError('Clipboard access not available. Please paste manually with Ctrl+V.');
-                textareaRef.current?.focus();
-                return;
-            }
-
-            // Try to read from clipboard
             const text = await navigator.clipboard.readText();
             
-            if (!text || text.trim().length === 0) {
-                setError('Clipboard is empty or could not be read. Try copying the CSV data again.');
-                return;
-            }
-
-            setCsvData(text);
-            handlePasteData({ target: { value: text } });
-            
+            //if (!text || text.trim().length === 0) {
+            if (!text) return alert("Clipboard is empty.");
+            setCsvData(text);          // Set fresh data
+          
         } catch (err) {
-            console.log('Clipboard read error:', err);
-            // Focus textarea for manual paste
-            setError('Could not read from clipboard. Please paste manually with Ctrl+V in the text area below.');
-            textareaRef.current?.focus();
+            console.error("Clipboard read failed:", err);
         }
     };
 
@@ -230,18 +212,35 @@ export default function SmartCSVImport({ onImport, onClose }) {
                     <div className="mb-6">
                         <div className="flex items-center justify-between mb-2">
                             <label className="text-white font-medium">CSV Data:</label>
-                            <button
-                                onClick={handleClipboardPaste}
-                                className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
-                            >
-                                📋 Try Clipboard Paste
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => {
+                                        setCsvData('');
+                                        setParsedEvents([]);
+                                        setShowPreview(false);
+                                        setError('');
+                                        textareaRef.current?.focus();
+                                    }}
+                                    className="px-3 py-1 text-sm bg-slate-600 hover:bg-slate-500 text-white rounded transition-colors"
+                                >
+                                    🗑️ Clear
+                                </button>
+                                <button
+                                    onClick={handleClipboardPaste}
+                                    className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+                                >
+                                    📋 Try Clipboard Paste
+                                </button>
+                            </div>
                         </div>
                         <textarea
                             ref={textareaRef}
                             value={csvData}
-                            onChange={handlePasteData}
-                            onKeyDown={handleKeyDown}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                setCsvData(value);
+                                handlePasteData(e);
+                            }}
                             placeholder="Paste your AI-generated CSV data here...
 
 👆 CLICK HERE and paste with Ctrl+V (or Cmd+V on Mac)
