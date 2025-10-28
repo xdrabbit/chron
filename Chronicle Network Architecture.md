@@ -31,6 +31,12 @@ Perfect! Thanks for the network map - that's super helpful! Let me document this
    - URL: `http://ritualstack.io`
    - Role: Public-facing frontend
 
+6. **tinman (2010 i5)** - Production Frontend
+   - local: '192.168.0.12'
+   - Role: Linux min dev box
+
+
+
 ### **Data Flow:**
 ```
 User Browser (**thomas-mac-mini (M1)** )

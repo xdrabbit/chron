@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { useRef, useState } from "react";
+import SmartCSVImport from "./SmartCSVImport";
 
 const formatDateLabel = (value) => {
   try {
@@ -37,6 +38,7 @@ export default function Timeline({
 }) {
   const fileInputRef = useRef(null);
   const [expandedEvents, setExpandedEvents] = useState(new Set());
+  const [showSmartImport, setShowSmartImport] = useState(false);
 
   // Color mapping for different actors (IMPROVED CONTRAST)
   const getActorStyle = (actor) => {
@@ -104,6 +106,13 @@ export default function Timeline({
             className="rounded border border-green-600 px-3 py-1.5 text-xs font-semibold text-green-200 hover:bg-green-600/10 focus:outline-none focus:ring-2 focus:ring-green-400 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {importing ? "Importing…" : "Import CSV"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowSmartImport(true)}
+            className="rounded border border-purple-600 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-600/10 focus:outline-none focus:ring-2 focus:ring-purple-400"
+          >
+            🤖 AI Import
           </button>
           <button
             type="button"
@@ -276,6 +285,18 @@ export default function Timeline({
         <p className="text-sm text-slate-400">
           No events yet. Add your first milestone using the form above.
         </p>
+      )}
+      
+      {/* Smart CSV Import Modal */}
+      {showSmartImport && (
+        <SmartCSVImport
+          onImport={(result) => {
+            setShowSmartImport(false);
+            // Refresh the timeline
+            window.location.reload();
+          }}
+          onClose={() => setShowSmartImport(false)}
+        />
       )}
     </div>
   );
