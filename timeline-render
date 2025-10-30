@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""CLI wrapper to render timeline PDFs from CSV files.
+
+Usage:
+    timeline-render --csv <file> --out <file> [--timeline <name>] [--highlight-violations] [--updated YYYY-MM-DD]
+
+Examples:
+    ./timeline-render --csv ./real-data-import.csv --out ./chronicle-timeline.pdf --updated 2025-10-29
+    ./timeline-render --csv ./real-data-import.csv --out ./chronicle-timeline.pdf --highlight-violations
+
+This script is a thin wrapper: it parses CSV rows into the event shape used by the app
+and calls backend.services.pdf_utils.build_timeline_pdf(...).
+
+Note: highlight logic is not implemented yet; the flag is accepted and forwarded.
+"""
+
+import argparse
+import csv
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# Optional PDF verification
+try:
+    from PyPDF2 import PdfReader
+except Exception:
+    PdfReader = None
+
+# Make sure project root is on sys.path
+ROOT = os.path.dirname(os.path.abspath(__file__))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+try:
+    from backend.services.pdf_utils import build_timeline_pdf
+except Exception as e:
+    print("Failed to import build_timeline_pdf from backend.services.pdf_utils:", e, file=sys.stderr)
+    raise
+
+
+def parse_args():
+    p = argparse.ArgumentParser(description="Render courtroom-readable timeline PDF from CSV",
+                                epilog="Examples:\n  timeline-render --csv real-data-import.csv --out out.pdf --timeline \"House Sale\"\n  timeline-render --csv real-data-import.csv --out out.pdf --timeline \"House Sale\" --updated 2025-10-29 --verify-updated\n",
+                                formatter_class=argparse.RawTextHelpFormatter)
+    p.add_argument("--csv", required=True, help="Input CSV file (UTF-8)")
+    p.add_argument("--out", required=True, help="Output PDF path")
+    p.add_argument("--timeline", type=str, default=None, help="Optional timeline filter (e.g., 'House Sale')")
+    p.add_argument("--highlight-violations", action="store_true", default=False,
+                   help="(stub) highlight deterministic rule violations in the PDF")
+    p.add_argument("--updated", type=str, default=None,
+                   help="Optional Last Updated date to use in footer (YYYY-MM-DD)")
+    p.add_argument("--verify-updated", action="store_true", default=False,
+                   help="After render, assert footer contains 'Last Updated <date>' (requires --updated)")
+    return p.parse_args()
+
+
+def _verify_footer_contains(pdf_path: str, expected: str) -> bool:
+    if PdfReader is None:
+        print("Warning: PyPDF2 not available; cannot verify footer.", file=sys.stderr)
+        return False
+    try:
+        r = PdfReader(pdf_path)
+        text_parts = []
+        for p in r.pages:
+            try:
+                text_parts.append(p.extract_text() or "")
+            except Exception:
+                pass
+        blob = "".join(text_parts)
+        return expected in blob
+    except Exception as e:
+        print(f"Verification error: {e}", file=sys.stderr)
+        return False
+
+
+def read_csv(path, timeline_filter=None):
+    events = []
+    with open(path, newline="", encoding="utf-8") as fh:
+        reader = csv.DictReader(fh)
+        expected = ['title', 'description', 'date', 'timeline', 'actor', 'emotion', 'tags', 'evidence_links']
+        # allow extra columns but require header presence
+        for h in expected:
+            if h not in reader.fieldnames:
+                raise SystemExit(f"CSV is missing required header: {h}")
+
+        for row in reader:
+            if timeline_filter and row.get('timeline') != timeline_filter:
+                continue
+            # Normalize date to ISO-like string (let PDF utils coerce)
+            date_val = row.get('date')
+            # Build event dict expected by build_timeline_pdf
+            events.append({
+                'title': row.get('title') or '',
+                'description': row.get('description') or '',
+                'date': date_val,
+                'timeline': row.get('timeline') or '',
+                'actor': row.get('actor') or '',
+                'emotion': row.get('emotion') or '',
+                'tags': row.get('tags') or '',
+                'evidence_links': row.get('evidence_links') or '',
+            })
+    return events
+
+
+def main():
+    args = parse_args()
+
+    events = read_csv(args.csv, timeline_filter=args.timeline)
+
+    # Call renderer
+    buf = build_timeline_pdf(events, highlight_violations=args.highlight_violations, updated=args.updated)
+
+    # Save output
+    with open(args.out, 'wb') as out_f:
+        out_f.write(buf.read())
+
+    print(f"Wrote timeline PDF to: {args.out}")
+
+    # Optional verification step
+    if args.verify_updated:
+        if not args.updated:
+            print("--verify-updated requires --updated YYYY-MM-DD", file=sys.stderr)
+            sys.exit(2)
+        expected = f"Last Updated {args.updated}"
+        ok = _verify_footer_contains(args.out, expected)
+        if not ok:
+            print(f"Footer verification FAILED: expected '{expected}' in {args.out}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Footer verification OK: found '{expected}' in {Path(args.out).name}")
+        sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()

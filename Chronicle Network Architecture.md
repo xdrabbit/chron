@@ -4,7 +4,7 @@ Perfect! Thanks for the network map - that's super helpful! Let me document this
 
 ### **Devices:**
 
-1. **thomas-mac-mini (M1)** - Your workstation
+1. **Applemac (M1)** - Your workstation
    - Local: `192.168.0.12`
    - Tailscale: `100.108.73.70`
    - Role: Development machine
